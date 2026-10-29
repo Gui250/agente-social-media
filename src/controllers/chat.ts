@@ -7,6 +7,7 @@ import { listSkills } from "@/agent/skills";
 import { summarizeConversation } from "@/agent/summarizer";
 import type { AgentContext } from "@/agent/context";
 import { type Message, type MessageMedia, toMessages } from "@/agent/transcript";
+import * as brands from "@/controllers/brands";
 import { previews } from "@/controllers/media";
 import { DomainError } from "@/lib/errors";
 import { listAccounts } from "@/models/account";
@@ -14,6 +15,7 @@ import {
   clearPending,
   getOrCreateConversation,
   saveHistory,
+  setConversationBrand,
   setPending,
   setSummary,
 } from "@/models/conversation";
@@ -69,16 +71,20 @@ async function contextFor(userId: string, conversationId?: string) {
     userId,
     timezone: profile.timezone,
     conversationId: conversation.id,
+    brandId: conversation.brand_id,
   };
   return { conversation, context };
 }
 
 async function approvalsFor(context: AgentContext, interruptions: Interruption[]): Promise<Approval[]> {
-  const accounts = await listAccounts(context.userId);
+  const [accounts, kit] = await Promise.all([
+    listAccounts(context.userId),
+    brands.activeKit(context.userId, context.brandId),
+  ]);
   return interruptions.map((i) => ({
     id: callId(i),
     tool: i.name ?? "",
-    summary: summarize(i.name ?? "", i.arguments, { timezone: context.timezone, accounts }),
+    summary: summarize(i.name ?? "", i.arguments, { timezone: context.timezone, accounts, brandName: kit?.name }),
   }));
 }
 
@@ -145,7 +151,7 @@ async function withMedia(userId: string, messages: Message[]): Promise<Message[]
 
 export async function sendMessage(
   userId: string,
-  input: { conversationId?: string; message: string; mediaIds?: string[] },
+  input: { conversationId?: string; message: string; mediaIds?: string[]; brandIds?: string[] },
   emit?: Emit,
 ): Promise<ChatResponse> {
   const { conversation, context } = await contextFor(userId, input.conversationId);
@@ -157,9 +163,21 @@ export async function sendMessage(
     );
   }
 
-  const text = input.mediaIds?.length
-    ? `${input.message}\n\n[mídias anexadas: ${input.mediaIds.join(", ")}]`
-    : input.message;
+  // Only the user's own brands survive; others are dropped without saying they exist.
+  const mentioned = input.brandIds?.length
+    ? (await brands.options(userId)).filter((b) => input.brandIds!.includes(b.id))
+    : [];
+  // One brand becomes the active one; with several the agent asks which (set_active_brand).
+  if (mentioned.length === 1) {
+    await setConversationBrand(userId, conversation.id, mentioned[0].id);
+    context.brandId = mentioned[0].id;
+  }
+
+  const markers = [
+    input.mediaIds?.length && `[mídias anexadas: ${input.mediaIds.join(", ")}]`,
+    ...mentioned.map((b) => `[marca mencionada: ${b.id} — ${b.name} (${b.organizationName})]`),
+  ].filter(Boolean);
+  const text = markers.length ? `${input.message}\n\n${markers.join("\n")}` : input.message;
   const history: AgentInputItem[] = [...conversation.history, user(text)];
   return finish(context, await runAgent(history, context, emit));
 }
@@ -197,6 +215,9 @@ export async function approve(
 }
 
 export { deleteConversation as remove, listConversations } from "@/models/conversation";
+
+// For the "@" menu in the chat.
+export const brandOptions = brands.options;
 
 // For the "/" menu in the chat: names and descriptions only, the bodies stay on the server.
 export async function skillOptions(userId: string): Promise<SkillOption[]> {

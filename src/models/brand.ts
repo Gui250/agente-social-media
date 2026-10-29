@@ -83,6 +83,15 @@ export async function listBrands(userId: string, organizationId: string): Promis
     order by b.name`;
 }
 
+// Every brand of the user, across their companies (the chat's @ menu).
+export async function listBrandsForUser(userId: string): Promise<BrandRow[]> {
+  return sql()<BrandRow[]>`
+    select b.*, o.slug as organization_slug, o.name as organization_name
+    from brands b join organizations o on o.id = b.organization_id
+    where o.user_id = ${userId}
+    order by o.name, b.name`;
+}
+
 export async function getBrand(userId: string, id: string): Promise<BrandRow> {
   const [brand] = await sql()<BrandRow[]>`
     select b.*, o.slug as organization_slug, o.name as organization_name

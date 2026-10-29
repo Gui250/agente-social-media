@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { writeScript } from "@/agent/script-writer";
 import { getSkills } from "@/agent/skills";
+import { activeKit, kitBlock } from "@/controllers/brands";
 import { DomainError } from "@/lib/errors";
 import {
   creativeScriptFor,
@@ -32,7 +33,8 @@ export const GenerateInput = z.object({
 });
 export type GenerateInput = z.input<typeof GenerateInput>;
 
-export async function generate(userId: string, input: GenerateInput) {
+// brandId: the conversation's active brand; its kit goes to the writer as data.
+export async function generate(userId: string, input: GenerateInput, brandId: string | null = null) {
   const parsed = GenerateInput.safeParse(input);
   if (!parsed.success) {
     throw new DomainError(
@@ -47,7 +49,15 @@ export async function generate(userId: string, input: GenerateInput) {
   const recent = (await listScripts(userId, { limit: 5 })).map(
     ({ content: c }) => `- ${c.title}: "${c.hook}"${c.artDirection ? ` (${c.artDirection})` : ""}`,
   );
-  const content = await writeScript({ ...req, guidelines, visualIdentity, recent });
+  const kit = await activeKit(userId, brandId);
+  const content = await writeScript({
+    ...req,
+    guidelines,
+    visualIdentity,
+    recent,
+    brand: kit && kitBlock(kit),
+    forbidden: kit?.proibidos,
+  });
   return insertScript({ user_id: userId, ...req, content });
 }
 

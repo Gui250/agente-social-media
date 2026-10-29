@@ -9,6 +9,7 @@ export const POST = route(
       conversationId: z.uuid().optional(),
       message: z.string().trim().min(1).max(4000),
       mediaIds: z.array(z.uuid()).max(20).optional(),
+      brandIds: z.array(z.uuid()).max(3).optional(),
     }),
   },
 );

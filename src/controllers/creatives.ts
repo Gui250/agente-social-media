@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { APIError } from "openai";
 import { type ArtReview, approved, reviewArt } from "@/agent/art-critic";
 import { videoPrompt, visualPrompt } from "@/agent/visual-prompt";
+import { activeKit, logoBytes, primaryColor } from "@/controllers/brands";
 import { DomainError } from "@/lib/errors";
 import { putObject, readObject } from "@/lib/storage";
 import { type CreativeScript, getScript } from "@/models/creative-script";
@@ -62,7 +63,7 @@ async function review(bytes: Uint8Array, script: CreativeScript, index: number):
 async function slideImage(
   script: CreativeScript,
   index: number,
-  brand: { segment: string; color: string | null },
+  brand: { segment: string; color: string | null; forbidden?: string[] },
   reference?: Uint8Array,
 ) {
   const make = async (prompt: string) => ({
@@ -80,23 +81,33 @@ Corrija em relação à versão anterior: ${[...firstReview.critical, firstRevie
   return better ? second : first;
 }
 
-export type GenerateResult = { status: "pronto" | "em produção"; mediaIds: string[]; generationId?: string };
+export type GenerateResult = {
+  status: "pronto" | "em produção";
+  mediaIds: string[];
+  generationId?: string;
+  // The active brand has no logo registered (and none was attached), so the art went without one.
+  semLogo?: true;
+};
 
 // Static script: one reviewed image per slide (slideImage), generated in parallel (well under the 300 s limit) and
 // stored only after all succeed, so a failed slide leaves nothing behind.
 // The logo goes on after the review, so the critic never takes the real logo for an invented one.
 // Video script: starts the job and returns at once; videoTick() finishes it.
 // ponytail: brand color and logo only reach images; a video would need ffmpeg to burn them in.
+// brandId: the conversation's active brand. Its kit fills the color and logo the agent didn't pass
+// (an attached logo or an explicit color wins) and keeps its forbidden elements out of the images.
 export async function generate(
   userId: string,
   input: { scriptId: string; referenceMediaId?: string | null; brandColor?: string | null; logoMediaId?: string | null },
+  brandId: string | null = null,
 ): Promise<GenerateResult> {
-  const { scriptId, referenceMediaId, brandColor, logoMediaId } = input;
-  const script = await getScript(userId, scriptId);
+  const { scriptId, referenceMediaId, logoMediaId } = input;
+  const [script, kit] = await Promise.all([getScript(userId, scriptId), activeKit(userId, brandId)]);
+  const brandColor = input.brandColor ?? (kit && primaryColor(kit));
   if (brandColor && !HEX.test(brandColor)) {
     throw new DomainError("invalid_input", "A cor da marca precisa estar no formato #RRGGBB.");
   }
-  const brand = { segment: script.segment, color: brandColor?.toUpperCase() ?? null };
+  const brand = { segment: script.segment, color: brandColor?.toUpperCase() ?? null, forbidden: kit?.proibidos };
   const reference = referenceMediaId ? await referenceImage(userId, referenceMediaId) : undefined;
 
   if (script.format === "video") {
@@ -112,8 +123,10 @@ export async function generate(
       script.content.blocks.map((_, i) => slideImage(script.content, i, brand, reference)),
     ),
   );
-  if (logoMediaId) {
-    const logo = await referenceImage(userId, logoMediaId);
+  const logo = logoMediaId
+    ? await referenceImage(userId, logoMediaId)
+    : kit && (await logoBytes(userId, kit.id));
+  if (logo) {
     for (const image of images) image.bytes = await withLogo(image.bytes, logo);
   }
   const mediaIds: string[] = [];
@@ -122,7 +135,7 @@ export async function generate(
     await insertGeneration({ user_id: userId, script_id: scriptId, kind: "image", prompt, status: "done", media_id: media.id });
     mediaIds.push(media.id);
   }
-  return { status: "pronto", mediaIds };
+  return kit && !logo ? { status: "pronto", mediaIds, semLogo: true } : { status: "pronto", mediaIds };
 }
 
 export const list = listGenerations;

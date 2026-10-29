@@ -13,6 +13,9 @@ Agente principal `socialMediaAgent` (`src/agent/agent.ts`). Contexto do run:
 | `schedule_post` | `accountId`, `postType`, `caption`, `mediaIds[]`, `scheduledAt` (ISO 8601 com offset), `scriptId?` | **sim** | `posts.schedule` | post `scheduled` |
 | `publish_post_now` | `postId?` **ou** campos de `schedule_post` sem `scheduledAt` | **sim** | `posts.publishNow` | post `publishing`/`published`/`failed` |
 | `cancel_post` | `postId` | não (reversível: dá para reagendar) | `posts.cancel` | post `cancelled` |
+| `list_brands` | — | não | `brands.options` | marcas com empresa e `active` (specs/003) |
+| `get_brand_kit` | `brandId?` (null = marca ativa) | não | `brands.kitFor` | brand kit (dados do cliente) |
+| `set_active_brand` | `brandId?` (null = parar de usar) | não | `brands.setActive` | marca ativa da conversa |
 
 ## Regras
 

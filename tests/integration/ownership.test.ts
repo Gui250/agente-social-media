@@ -187,4 +187,23 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
       { action: "brand.update", metadata: { fields: ["name"] } },
     ]);
   });
+
+  it("a conversation's active brand must be the user's", async () => {
+    const org = await organization.insertOrganization({ userId: alice, name: "Clínica", slug: `own-${crypto.randomUUID().slice(0, 8)}` });
+    const b = await brand.insertBrand(alice, org.id, { name: "Kids" });
+    const aliceChat = (await conversation.getOrCreateConversation(alice)).id;
+    const bobChat = (await conversation.getOrCreateConversation(bob)).id;
+
+    await conversation.setConversationBrand(alice, aliceChat, b.id);
+    expect((await conversation.getOrCreateConversation(alice, aliceChat)).brand_id).toBe(b.id);
+    expect((await brand.listBrandsForUser(alice)).map((r) => r.id)).toContain(b.id);
+    expect(await brand.listBrandsForUser(bob)).toEqual([]);
+
+    await notFound(conversation.setConversationBrand(bob, bobChat, b.id));
+    await notFound(conversation.setConversationBrand(bob, aliceChat, null));
+    expect((await conversation.getOrCreateConversation(bob, bobChat)).brand_id).toBeNull();
+
+    await brand.deleteBrand(alice, b.id);
+    expect((await conversation.getOrCreateConversation(alice, aliceChat)).brand_id).toBeNull();
+  });
 });

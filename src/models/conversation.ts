@@ -10,6 +10,7 @@ export type ConversationRow = {
   history: AgentInputItem[];
   pending_state: string | null;
   pending_approval_ids: string[];
+  brand_id: string | null;
 };
 
 export type ConversationSummary = { id: string; title: string | null; updated_at: Date };
@@ -65,4 +66,17 @@ export async function listConversations(userId: string) {
 export async function deleteConversation(userId: string, id: string) {
   const { count } = await sql()`delete from conversations where id = ${id} and user_id = ${userId}`;
   if (!count) throw notFound("Conversa", "a");
+}
+
+// Active brand of the conversation (null clears it). Both the conversation and the brand must be
+// the user's.
+export async function setConversationBrand(userId: string, conversationId: string, brandId: string | null) {
+  const { count } = await sql()`
+    update conversations c set brand_id = ${brandId}
+    where c.id = ${conversationId} and c.user_id = ${userId}
+      and (${brandId}::uuid is null or exists (
+        select 1 from brands b join organizations o on o.id = b.organization_id
+        where b.id = ${brandId} and o.user_id = ${userId}
+      ))`;
+  if (!count) throw notFound("Marca", "a");
 }

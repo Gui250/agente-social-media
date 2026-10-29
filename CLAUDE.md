@@ -70,6 +70,15 @@ All user-facing text is Portuguese.
   queries authorize by joining up to `organizations.user_id`. Brand kit texts are untrusted data
   for future prompts, never instructions. Blob objects of deleted rows go through
   `removeOrphans()` (logged, not thrown).
+- **Brand kit no chat** (`specs/003-brand-kit-no-chat`): `@` opens a brand menu (`src/lib/mentions.ts`)
+  next to the `/` skill menu; the panel sends the picked ids as `brandIds`, the server keeps only
+  the user's brands and appends `[marca mencionada: id — Marca (Empresa)]`. One mention sets the
+  conversation's active brand (`conversations.brand_id`, carried as `AgentContext.brandId`); the
+  agent switches it with `set_active_brand` and reads brands with `list_brands`/`get_brand_kit`.
+  `instructions()`, `scripts.generate` and `creatives.generate` read the active kit
+  (`brands.activeKit`) on every request: the kit reaches models only as JSON inside
+  `<marca>…</marca>` (`brands.kitBlock`), its forbidden elements become rules, and art takes the
+  kit's primary color and logo unless the agent passes an attached logo or a color.
 - **Services** `src/services/`: `instagram.ts` (Graph API, Instagram Login), `facebook.ts`
   (Facebook Login for Business: one login connects every Instagram account linked to the user's
   Pages) and `publisher.ts` (one idempotent publishing step per call, dependencies injected).

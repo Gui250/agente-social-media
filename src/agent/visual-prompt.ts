@@ -1,6 +1,9 @@
 import type { CreativeScript } from "@/models/creative-script";
 
-type Brand = { segment: string };
+// forbidden: the active brand's forbidden elements (brand kit).
+type Brand = { segment: string; forbidden?: string[] };
+
+const forbiddenLine = (brand: Brand) => brand.forbidden?.length && `Não mostre: ${brand.forbidden.join("; ")}.`;
 
 // Pure: one block of the script → one image prompt. Conversion rules live here so every image
 // gets them: hook on the first image, one focal point, no stock-photo look, no text drawn by the
@@ -18,6 +21,7 @@ export function visualPrompt(script: CreativeScript, index: number, brand: Brand
     "Nada de banco de imagens: sem pessoas posando e sorrindo para a câmera, sem fundo liso de estúdio, sem pele de plástico.",
     "Assunto na metade de baixo; terço superior com área limpa para texto sobreposto.",
     "Não mostre preços, promoções, resultados garantidos, antes e depois nem paciente ou resultado de tratamento.",
+    forbiddenLine(brand),
     "Sem texto, letras, números, logotipos ou marcas d'água.",
   ]
     .filter(Boolean)
@@ -33,6 +37,7 @@ export function videoPrompt(script: CreativeScript, brand: Brand) {
     `Sequência, comprimida em 12 segundos:\n${scenes}`,
     script.artDirection && `Direção de arte: ${script.artDirection}`,
     "Não mostre preços, promoções, resultados garantidos nem comparações de antes e depois.",
+    forbiddenLine(brand),
     "Sem texto na tela, sem legendas, sem logotipos, sem vinheta de abertura.",
   ]
     .filter(Boolean)

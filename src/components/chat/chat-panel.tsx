@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -8,6 +9,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { apiStream } from "@/lib/api-client";
+import { type BrandOption, filterBrands, insertMention, mentionQuery, mentionedIds } from "@/lib/mentions";
 import type { Message, MessageMedia } from "@/agent/transcript";
 import type { Approval, ChatProgress, ChatResponse, SkillOption } from "@/controllers/chat";
 import { ApprovalCard } from "./approval-card";
@@ -25,15 +27,22 @@ const TOOL_STATUS: Record<string, string> = {
   schedule_post: "Agendando o post…",
   publish_post_now: "Publicando…",
   cancel_post: "Cancelando o post…",
+  list_brands: "Consultando suas marcas…",
+  get_brand_kit: "Lendo o brand kit…",
+  set_active_brand: "Trocando a marca…",
 };
+
+type MenuItem = { id: string; label: string; hint: string; pick: () => void };
 
 // The page remounts this (key = conversation id) whenever another conversation is opened.
 export function ChatPanel({
   skills = [],
+  brands = [],
   initialMessages = [],
   initialApprovals = [],
 }: {
   skills?: SkillOption[];
+  brands?: BrandOption[];
   initialMessages?: Message[];
   initialApprovals?: Approval[];
 }) {
@@ -42,6 +51,8 @@ export function ChatPanel({
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [media, setMedia] = useState<UploadedMedia[]>([]);
+  // Brands picked in the "@" menu; only those still named in the text are sent.
+  const [picked, setPicked] = useState<BrandOption[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>(initialApprovals);
   const [decisions, setDecisions] = useState<Record<string, boolean>>({});
   const [pending, setPending] = useState(false);
@@ -51,14 +62,42 @@ export function ChatPanel({
   const [dismissed, setDismissed] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
 
-  // "/" at the start of a word opens the skill menu, filtered by what follows it.
+  // "/" at the start of a word opens the skill menu and "@" the brand menu, filtered by what follows.
+  const open = dismissed !== input;
   const slash = input.match(/(?:^|\s)\/([\w-]*)$/);
-  const matches =
-    slash && dismissed !== input ? skills.filter((s) => s.name.startsWith(slash[1].toLowerCase())) : [];
-  const highlighted = Math.min(active, matches.length - 1);
+  const brandQuery = open ? mentionQuery(input) : null;
+  const menu: { id: string; label: string; items: MenuItem[] } | null =
+    slash && open
+      ? {
+          id: "skill-menu",
+          label: "Skills",
+          items: skills
+            .filter((s) => s.name.startsWith(slash[1].toLowerCase()))
+            .map((s) => ({ id: `skill-${s.name}`, label: `/${s.name}`, hint: s.description, pick: () => pickSkill(s.name) })),
+        }
+      : brandQuery !== null
+        ? {
+            id: "brand-menu",
+            label: "Marcas",
+            items: filterBrands(brands, brandQuery).map((b) => ({
+              id: `brand-${b.id}`,
+              label: b.name,
+              hint: b.organizationName,
+              pick: () => pickBrand(b),
+            })),
+          }
+        : null;
+  const items = menu?.items ?? [];
+  const highlighted = Math.min(active, items.length - 1);
 
   function pickSkill(name: string) {
     setInput(`${input.slice(0, input.length - (slash?.[1].length ?? 0) - 1)}/${name} `);
+    setActive(0);
+  }
+
+  function pickBrand(brand: BrandOption) {
+    setInput(insertMention(input, brand));
+    setPicked((p) => [...p, brand]);
     setActive(0);
   }
 
@@ -97,20 +136,23 @@ export function ChatPanel({
     const message = input.trim();
     if (!message || pending || approvals.length > 0) return;
     const mediaIds = media.map((m) => m.id);
+    const brandIds = mentionedIds(message, picked);
     setInput("");
     setMedia([]);
+    setPicked([]);
     setMessages((m) => [
       ...m,
       { role: "user", text: mediaIds.length ? `${message}\n📎 ${mediaIds.length} mídia(s)` : message },
     ]);
     setPending(true);
     try {
-      handle(await chat("/api/chat", { conversationId, message, mediaIds }));
+      handle(await chat("/api/chat", { conversationId, message, mediaIds, brandIds }));
     } catch (err) {
       toast.error((err as Error).message);
       setMessages((m) => m.slice(0, -1));
       setInput(message);
       setMedia(media);
+      setPicked(picked);
     } finally {
       setPending(false);
     }
@@ -157,8 +199,8 @@ export function ChatPanel({
         {messages.length === 0 && (
           <p className="text-sm text-muted-foreground">
             Diga o segmento do seu negócio e o formato (vídeo curto ou post estático) para receber
-            um roteiro. Digite / para escolher uma skill. Anexe seu logo para extrair as cores e a
-            identidade visual da marca. Para agendar, anexe a imagem ou o vídeo e diga quando publicar.
+            um roteiro. Digite / para escolher uma skill e @ para usar o brand kit de uma marca. Sem
+            marca cadastrada, anexe seu logo para extrair as cores e a identidade visual. Para agendar, anexe a imagem ou o vídeo e diga quando publicar.
           </p>
         )}
         {messages.map((m, i) => (
@@ -203,30 +245,38 @@ export function ChatPanel({
         )}
         <div className="flex gap-2">
           <div className="relative flex-1">
-            {matches.length > 0 && (
+            {menu && items.length > 0 && (
               <ul
-                id="skill-menu"
+                id={menu.id}
                 role="listbox"
-                aria-label="Skills"
-                className="absolute bottom-full left-0 z-10 mb-1 grid w-full max-w-md gap-0.5 rounded-md border bg-popover p-1 text-sm shadow-md"
+                aria-label={menu.label}
+                className="absolute bottom-full left-0 z-10 mb-1 grid max-h-64 w-full max-w-md gap-0.5 overflow-y-auto rounded-md border bg-popover p-1 text-sm shadow-md"
               >
-                {matches.map((s, i) => (
+                {items.map((item, i) => (
                   <li
-                    key={s.name}
-                    id={`skill-${s.name}`}
+                    key={item.id}
+                    id={item.id}
                     role="option"
                     aria-selected={i === highlighted}
                     className={`cursor-pointer rounded px-2 py-1.5 ${i === highlighted ? "bg-muted" : ""}`}
                     onMouseDown={(e) => {
                       e.preventDefault(); // keep focus in the textarea
-                      pickSkill(s.name);
+                      item.pick();
                     }}
                   >
-                    <span className="font-medium">/{s.name}</span>
-                    <span className="block text-xs text-muted-foreground">{s.description}</span>
+                    <span className="font-medium">{item.label}</span>
+                    <span className="block text-xs text-muted-foreground">{item.hint}</span>
                   </li>
                 ))}
               </ul>
+            )}
+            {menu?.id === "brand-menu" && brands.length === 0 && (
+              <p className="absolute bottom-full left-0 z-10 mb-1 rounded-md border bg-popover p-2 text-sm shadow-md">
+                Nenhuma marca cadastrada.{" "}
+                <Link href="/empresas" className="underline">
+                  Cadastre em Empresas.
+                </Link>
+              </p>
             )}
             <Textarea
               value={input}
@@ -235,16 +285,16 @@ export function ChatPanel({
                 setActive(0);
               }}
               onKeyDown={(e) => {
-                if (matches.length > 0) {
+                if (items.length > 0) {
                   if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                     e.preventDefault();
                     const step = e.key === "ArrowDown" ? 1 : -1;
-                    setActive((highlighted + step + matches.length) % matches.length);
+                    setActive((highlighted + step + items.length) % items.length);
                     return;
                   }
                   if (e.key === "Enter" || e.key === "Tab") {
                     e.preventDefault();
-                    pickSkill(matches[highlighted].name);
+                    items[highlighted].pick();
                     return;
                   }
                   if (e.key === "Escape") {
@@ -254,13 +304,13 @@ export function ChatPanel({
                 }
                 if (e.key === "Enter" && !e.shiftKey) send(e);
               }}
-              placeholder="Escreva sua mensagem… (/ para usar uma skill)"
+              placeholder="Escreva sua mensagem… (/ para skill, @ para marca)"
               aria-label="Mensagem"
               role="combobox"
-              aria-expanded={matches.length > 0}
-              aria-controls="skill-menu"
+              aria-expanded={items.length > 0}
+              aria-controls={menu?.id ?? "skill-menu"}
               aria-autocomplete="list"
-              aria-activedescendant={matches.length > 0 ? `skill-${matches[highlighted].name}` : undefined}
+              aria-activedescendant={items.length > 0 ? items[highlighted].id : undefined}
               maxLength={4000}
               rows={2}
               disabled={blocked}

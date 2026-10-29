@@ -45,3 +45,17 @@ describe("videoPrompt", () => {
     expect(prompt).toMatch(/Sem texto na tela/);
   });
 });
+
+describe("forbidden elements", () => {
+  it("are listed before the last line, on images and video", () => {
+    const brand = { segment: "dentista", forbidden: ["neon", "dentes cariados"] };
+    const image = visualPrompt(script, 0, brand);
+    expect(image).toContain("Não mostre: neon; dentes cariados.");
+    expect(image.split("\n").at(-1)).toMatch(/^Sem texto/);
+    expect(videoPrompt(script, brand)).toContain("Não mostre: neon; dentes cariados.");
+  });
+
+  it("are left out when there are none", () => {
+    expect(visualPrompt(script, 0, { segment: "dentista", forbidden: [] })).not.toContain("Não mostre:");
+  });
+});

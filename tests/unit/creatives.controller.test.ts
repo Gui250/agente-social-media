@@ -32,6 +32,14 @@ vi.mock("@/services/overlay", () => ({
   fitTo: async (bytes: Uint8Array) => bytes,
 }));
 
+const activeKit = vi.fn(async (): Promise<object | null> => null);
+const logoBytes = vi.fn(async (): Promise<Uint8Array | null> => null);
+vi.mock("@/controllers/brands", () => ({
+  activeKit,
+  logoBytes,
+  primaryColor: (kit: { cores: { hex: string }[] }) => kit.cores[0]?.hex ?? null,
+}));
+
 const { generate, videoTick } = await import("@/controllers/creatives");
 
 const content = (durationSeconds: number | null) => ({
@@ -170,5 +178,55 @@ describe("creatives.videoTick", () => {
     expect(finishGeneration).toHaveBeenCalledWith("done", { status: "done", media_id: "m1" });
     expect(finishGeneration).toHaveBeenCalledWith("bad", { status: "failed", failure_reason: "x" });
     expect(finishGeneration).toHaveBeenCalledWith("old", { status: "failed", failure_reason: "Tempo esgotado." });
+  });
+});
+
+describe("creatives.generate with an active brand", () => {
+  const kit = { id: "b1", name: "Sorriso Kids", cores: [{ hex: "#1A2B3C", papel: "primária" }], proibidos: ["neon"] };
+  const staticScript = { id: "s1", segment: "dentista", format: "static", content: { ...content(null), blocks: [content(null).blocks[0]] } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    insertMedia.mockImplementation(async (row) => ({ id: "m1", ...row }));
+    insertGeneration.mockImplementation(async (row) => ({ id: "g1", ...row }));
+    reviewArt.mockResolvedValue({ score: 90, critical: [], fixes: "" });
+    withText.mockImplementation(async (bytes: Uint8Array) => bytes);
+    getScript.mockResolvedValue(staticScript);
+    gen.generateImage.mockResolvedValue(new Uint8Array([1]));
+    activeKit.mockResolvedValue(kit);
+    logoBytes.mockResolvedValue(new Uint8Array([9]));
+  });
+
+  it("uses the kit's color and logo, and keeps its forbidden elements out of the image", async () => {
+    const res = await generate("u1", { scriptId: "s1" }, "b1");
+    expect(activeKit).toHaveBeenCalledWith("u1", "b1");
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", "#1A2B3C");
+    expect([...putObject.mock.calls[0][1]]).toEqual([1, 9]);
+    expect(gen.generateImage.mock.calls[0][0]).toContain("Não mostre: neon.");
+    expect(res).not.toHaveProperty("semLogo");
+  });
+
+  it("explicit color and attached logo win over the kit", async () => {
+    getMediaForUser.mockResolvedValue([{ kind: "image", storage_path: "u1/logo.jpg" }]);
+    readObject.mockResolvedValue(new Uint8Array([7]));
+    await generate("u1", { scriptId: "s1", brandColor: "#000000", logoMediaId: "logo" }, "b1");
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", "#000000");
+    expect([...putObject.mock.calls[0][1]]).toEqual([1, 7]);
+    expect(logoBytes).not.toHaveBeenCalled();
+  });
+
+  it("says so when the brand has no logo", async () => {
+    logoBytes.mockResolvedValue(null);
+    const res = await generate("u1", { scriptId: "s1" }, "b1");
+    expect(res).toMatchObject({ semLogo: true });
+    expect([...putObject.mock.calls[0][1]]).toEqual([1]);
+  });
+
+  it("without an active brand behaves as before", async () => {
+    activeKit.mockResolvedValue(null);
+    await generate("u1", { scriptId: "s1" }, null);
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", null);
+    expect(logoBytes).not.toHaveBeenCalled();
+    expect(gen.generateImage.mock.calls[0][0]).not.toContain("Não mostre:");
   });
 });

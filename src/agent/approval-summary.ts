@@ -15,7 +15,11 @@ type Args = {
 export function summarize(
   toolName: string,
   rawArgs: string | undefined,
-  { timezone, accounts }: { timezone: string; accounts: { id: string; username: string }[] },
+  {
+    timezone,
+    accounts,
+    brandName,
+  }: { timezone: string; accounts: { id: string; username: string }[]; brandName?: string | null },
 ) {
   let args: Args = {};
   try {
@@ -24,7 +28,10 @@ export function summarize(
 
   if (toolName === "publish_post_now" && args.postId) return "Publicar agora o post selecionado";
   if (toolName === "generate_creative_media") {
-    return "Gerar com IA as mídias do roteiro (imagens ou vídeo). Cada geração tem custo; artes reprovadas na revisão automática são refeitas uma vez.";
+    const cost = "Cada geração tem custo; artes reprovadas na revisão automática são refeitas uma vez.";
+    return brandName
+      ? `Gerar com IA as mídias do roteiro para a marca ${brandName}. ${cost}`
+      : `Gerar com IA as mídias do roteiro (imagens ou vídeo). ${cost}`;
   }
 
   const username = accounts.find((a) => a.id === args.accountId)?.username ?? "conta desconhecida";
