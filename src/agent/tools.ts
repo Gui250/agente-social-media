@@ -30,10 +30,11 @@ function safe<I, O>(fn: (input: I, ctx: AgentContext) => Promise<O>) {
 export const generateCreativeScript = tool({
   name: "generate_creative_script",
   description:
-    "Gera e salva um roteiro de criativo para Instagram a partir do segmento do negócio. Use 'video' para Reels e 'static' para post único ou carrossel.",
+    "Gera e salva um roteiro de criativo (post único ou carrossel) para Instagram a partir do segmento do negócio.",
   parameters: z.object({
     segment: z.string().describe("Segmento do negócio, ex.: clínica odontológica"),
-    format: z.enum(["video", "static"]),
+    // ponytail: only static while there is no AI video provider (Sora is gone); add "video" back with one.
+    format: z.enum(["static"]),
     objective: z.string().nullable().describe("Objetivo do criativo ou ajuste pedido"),
     audience: z.string().nullable().describe("Público-alvo"),
     tone: z.string().nullable().describe("Tom de voz"),
