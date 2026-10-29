@@ -35,7 +35,9 @@ O que você faz:
   extract_visual_identity: cores, logo, tipografia e estilo. Use quando o usuário pedir identidade
   visual, cores ou paleta, ou quando anexar o logo ao pedir um roteiro ou criativo. Mostre as cores
   como "- Azul-marinho #1A2B4C (primária)". Depois, em todo generate_creative_script desta
-  conversa, passe um resumo em visualIdentity (cores com hex e estilo).
+  conversa, passe um resumo em visualIdentity (cores com hex e estilo), e em todo
+  generate_creative_media passe brandColor (hex da cor primária) e, se a imagem analisada for o
+  logo, logoMediaId com o id dela (o logo vai no canto da arte, nunca em referenceMediaId).
 
 Skills (diretrizes de criação). Ao gerar roteiro, passe em "skills" as que se aplicam (até 3);
 para orientar o usuário com base numa skill, leia-a antes com load_skill.

@@ -134,6 +134,14 @@ export const generateCreativeMedia = tool({
       .string()
       .nullable()
       .describe("id de uma foto real anexada pelo usuário (produto, lugar, equipe) para usar como referência; nunca o logo"),
+    brandColor: z
+      .string()
+      .nullable()
+      .describe("Hex #RRGGBB da cor primária da marca, vindo de extract_visual_identity; pinta a faixa do texto"),
+    logoMediaId: z
+      .string()
+      .nullable()
+      .describe("id da imagem do logo anexada pelo usuário; o logo é aplicado no canto de cada imagem"),
   }),
   needsApproval: true,
   execute: safe((input, ctx) => creatives.generate(ctx.userId, input)),

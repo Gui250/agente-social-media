@@ -9,6 +9,9 @@ const runningVideos = vi.fn();
 const finishGeneration = vi.fn();
 const putObject = vi.fn();
 const reviewArt = vi.fn();
+const getMediaForUser = vi.fn();
+const readObject = vi.fn();
+const withText = vi.fn();
 const gen = {
   VIDEO_SIZE: { width: 720, height: 1280 },
   generateImage: vi.fn(),
@@ -18,13 +21,14 @@ const gen = {
 };
 
 vi.mock("@/models/creative-script", () => ({ getScript }));
-vi.mock("@/models/media", () => ({ insertMedia, getMediaForUser: vi.fn() }));
+vi.mock("@/models/media", () => ({ insertMedia, getMediaForUser }));
 vi.mock("@/models/generation", () => ({ insertGeneration, runningVideos, finishGeneration, listGenerations: vi.fn() }));
-vi.mock("@/lib/storage", () => ({ putObject, readObject: vi.fn() }));
+vi.mock("@/lib/storage", () => ({ putObject, readObject }));
 vi.mock("@/services/creative-gen", () => gen);
 vi.mock("@/agent/art-critic", async (orig) => ({ ...(await orig<typeof import("@/agent/art-critic")>()), reviewArt }));
 vi.mock("@/services/overlay", () => ({
-  withText: async (bytes: Uint8Array, text: string) => new Uint8Array([...bytes, text.length]),
+  withText,
+  withLogo: async (bytes: Uint8Array, logo: Uint8Array) => new Uint8Array([...bytes, ...logo]),
   fitTo: async (bytes: Uint8Array) => bytes,
 }));
 
@@ -48,6 +52,27 @@ describe("creatives.generate", () => {
     insertMedia.mockImplementation(async (row) => ({ id: `m-${row.storage_path}`, ...row }));
     insertGeneration.mockImplementation(async (row) => ({ id: "g1", ...row }));
     reviewArt.mockResolvedValue({ score: 90, critical: [], fixes: "" });
+    withText.mockImplementation(async (bytes: Uint8Array, text: string) => new Uint8Array([...bytes, text.length]));
+  });
+
+  it("static: paints the text with the brand color and stamps the logo after the review", async () => {
+    getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "static", content: content(null) });
+    gen.generateImage.mockResolvedValue(new Uint8Array([1]));
+    getMediaForUser.mockResolvedValue([{ kind: "image", storage_path: "u1/logo.jpg" }]);
+    readObject.mockResolvedValue(new Uint8Array([7]));
+
+    await generate("u1", { scriptId: "s1", brandColor: "#1a2b4c", logoMediaId: "logo" });
+
+    expect(getMediaForUser).toHaveBeenCalledWith(["logo"], "u1");
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", "#1A2B4C");
+    expect(reviewArt.mock.calls.map((c) => [...c[0]])).toEqual([[1, 1], [1, 2]]); // reviewed without the logo
+    expect(putObject.mock.calls.map((c) => [...c[1]])).toEqual([[1, 1, 7], [1, 2, 7]]);
+  });
+
+  it("rejects a brand color that isn't #RRGGBB before spending on images", async () => {
+    getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "static", content: content(null) });
+    await expect(generate("u1", { scriptId: "s1", brandColor: "azul" })).rejects.toBeInstanceOf(DomainError);
+    expect(gen.generateImage).not.toHaveBeenCalled();
   });
 
   it("static: stores one JPEG per slide under the user's folder, in slide order", async () => {

@@ -9,10 +9,11 @@ import { type CreativeScript, getScript } from "@/models/creative-script";
 import { finishGeneration, insertGeneration, listGenerations, runningVideos } from "@/models/generation";
 import { getMediaForUser, insertMedia } from "@/models/media";
 import * as gen from "@/services/creative-gen";
-import { fitTo, withText } from "@/services/overlay";
+import { fitTo, withLogo, withText } from "@/services/overlay";
 
 const VIDEO_TIMEOUT_MS = 60 * 60 * 1000;
 const BATCH = 10;
+const HEX = /^#[0-9a-f]{6}$/i;
 
 async function store(userId: string, bytes: Uint8Array, kind: "image" | "video") {
   const mime = kind === "image" ? "image/jpeg" : "video/mp4";
@@ -21,7 +22,7 @@ async function store(userId: string, bytes: Uint8Array, kind: "image" | "video")
   return insertMedia({ user_id: userId, storage_path: storagePath, kind, mime_type: mime, size_bytes: bytes.byteLength });
 }
 
-// The user's own photo (e.g. the real product), so the model doesn't invent one.
+// The user's own photo (e.g. the real product, so the model doesn't invent one) or their logo.
 async function referenceImage(userId: string, mediaId: string) {
   const [media] = await getMediaForUser([mediaId], userId);
   if (media.kind !== "image") throw new DomainError("invalid_media", "A referência precisa ser uma imagem JPEG.");
@@ -58,10 +59,15 @@ async function review(bytes: Uint8Array, script: CreativeScript, index: number):
 // One slide: generate, have the critic score it, and redo a rejected one once with the critic's
 // fixes, keeping the better of the two. ponytail: up to 2 images per slide; a second retry would
 // risk the 300 s request limit.
-async function slideImage(script: CreativeScript, index: number, brand: { segment: string }, reference?: Uint8Array) {
+async function slideImage(
+  script: CreativeScript,
+  index: number,
+  brand: { segment: string; color: string | null },
+  reference?: Uint8Array,
+) {
   const make = async (prompt: string) => ({
     prompt,
-    bytes: await withText(await gen.generateImage(prompt, reference), script.blocks[index].text),
+    bytes: await withText(await gen.generateImage(prompt, reference), script.blocks[index].text, brand.color),
   });
   const first = await make(visualPrompt(script, index, brand));
   const firstReview = await review(first.bytes, script, index);
@@ -78,13 +84,19 @@ export type GenerateResult = { status: "pronto" | "em produção"; mediaIds: str
 
 // Static script: one reviewed image per slide (slideImage), generated in parallel (well under the 300 s limit) and
 // stored only after all succeed, so a failed slide leaves nothing behind.
+// The logo goes on after the review, so the critic never takes the real logo for an invented one.
 // Video script: starts the job and returns at once; videoTick() finishes it.
+// ponytail: brand color and logo only reach images; a video would need ffmpeg to burn them in.
 export async function generate(
   userId: string,
-  { scriptId, referenceMediaId }: { scriptId: string; referenceMediaId?: string | null },
+  input: { scriptId: string; referenceMediaId?: string | null; brandColor?: string | null; logoMediaId?: string | null },
 ): Promise<GenerateResult> {
+  const { scriptId, referenceMediaId, brandColor, logoMediaId } = input;
   const script = await getScript(userId, scriptId);
-  const brand = { segment: script.segment };
+  if (brandColor && !HEX.test(brandColor)) {
+    throw new DomainError("invalid_input", "A cor da marca precisa estar no formato #RRGGBB.");
+  }
+  const brand = { segment: script.segment, color: brandColor?.toUpperCase() ?? null };
   const reference = referenceMediaId ? await referenceImage(userId, referenceMediaId) : undefined;
 
   if (script.format === "video") {
@@ -100,6 +112,10 @@ export async function generate(
       script.content.blocks.map((_, i) => slideImage(script.content, i, brand, reference)),
     ),
   );
+  if (logoMediaId) {
+    const logo = await referenceImage(userId, logoMediaId);
+    for (const image of images) image.bytes = await withLogo(image.bytes, logo);
+  }
   const mediaIds: string[] = [];
   for (const { prompt, bytes } of images) {
     const media = await store(userId, bytes, "image");
