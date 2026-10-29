@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { writeScript } from "@/agent/script-writer";
+import { getSkills } from "@/agent/skills";
 import { DomainError } from "@/lib/errors";
 import {
   creativeScriptFor,
@@ -24,6 +25,7 @@ export const GenerateInput = z.object({
   objective: optionalText,
   audience: optionalText,
   tone: optionalText,
+  skills: z.array(z.string().max(60)).max(3).nullish(),
 });
 export type GenerateInput = z.input<typeof GenerateInput>;
 
@@ -35,8 +37,9 @@ export async function generate(userId: string, input: GenerateInput) {
       "Informe o segmento (2 a 120 caracteres) e o formato: vídeo ou estático.",
     );
   }
-  const req = parsed.data;
-  const content = await writeScript(req);
+  const { skills, ...req } = parsed.data;
+  const guidelines = skills?.length ? (await getSkills(skills)).map((s) => s.body).join("\n\n") : null;
+  const content = await writeScript({ ...req, guidelines });
   return insertScript({ user_id: userId, ...req, content });
 }
 

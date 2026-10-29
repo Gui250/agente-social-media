@@ -3,7 +3,8 @@ import { type AgentInputItem, RunState, run, user } from "@openai/agents";
 import { socialMediaAgent } from "@/agent/agent";
 import { summarize } from "@/agent/approval-summary";
 import type { AgentContext } from "@/agent/context";
-import { type Message, toMessages } from "@/agent/transcript";
+import { type Message, type MessageMedia, toMessages } from "@/agent/transcript";
+import { previews } from "@/controllers/media";
 import { DomainError } from "@/lib/errors";
 import { listAccounts } from "@/models/account";
 import {
@@ -16,7 +17,7 @@ import { getProfile } from "@/models/profile";
 
 export type Approval = { id: string; tool: string; summary: string };
 export type ChatResponse =
-  | { conversationId: string; status: "done"; reply: string }
+  | { conversationId: string; status: "done"; reply: string; media: MessageMedia[] }
   | { conversationId: string; status: "needs_approval"; reply: string; approvals: Approval[] };
 
 const MAX_TURNS = 10;
@@ -82,7 +83,23 @@ async function finish(
     };
   }
   await saveHistory(conversationId, result.history);
-  return { conversationId, status: "done", reply: String(result.finalOutput ?? "") };
+  // Media made in this run is attached to the final reply (the last assistant message).
+  const last = toMessages(result.history).at(-1);
+  const mediaIds = last?.role === "assistant" ? (last.mediaIds ?? []) : [];
+  return {
+    conversationId,
+    status: "done",
+    reply: String(result.finalOutput ?? ""),
+    media: await previews(context.userId, mediaIds),
+  };
+}
+
+async function withMedia(userId: string, messages: Message[]): Promise<Message[]> {
+  const media = new Map((await previews(userId, messages.flatMap((m) => m.mediaIds ?? []))).map((m) => [m.id, m]));
+  return messages.map(({ mediaIds, ...m }) => {
+    const found = (mediaIds ?? []).flatMap((id) => media.get(id) ?? []);
+    return found.length ? { ...m, media: found } : m;
+  });
 }
 
 export async function sendMessage(
@@ -147,10 +164,12 @@ export async function openConversation(
   conversationId: string,
 ): Promise<{ messages: Message[]; approvals: Approval[] }> {
   const { conversation, context } = await contextFor(userId, conversationId);
-  if (!conversation.pending_state) return { messages: toMessages(conversation.history), approvals: [] };
+  if (!conversation.pending_state) {
+    return { messages: await withMedia(userId, toMessages(conversation.history)), approvals: [] };
+  }
   const state = await RunState.fromString(socialMediaAgent, conversation.pending_state);
   return {
-    messages: toMessages(state.history),
+    messages: await withMedia(userId, toMessages(state.history)),
     approvals: await approvalsFor(context, state.getInterruptions() as Interruption[]),
   };
 }

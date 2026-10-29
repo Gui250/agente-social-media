@@ -52,6 +52,8 @@ export type ScriptRequest = {
   objective?: string | null;
   audience?: string | null;
   tone?: string | null;
+  // Bodies of the skills the agent chose (src/agent/skills.ts).
+  guidelines?: string | null;
 };
 
 export async function writeScript(req: ScriptRequest): Promise<CreativeScript> {
@@ -61,6 +63,7 @@ export async function writeScript(req: ScriptRequest): Promise<CreativeScript> {
     req.objective && `Objetivo: ${req.objective}`,
     req.audience && `Público-alvo: ${req.audience}`,
     req.tone && `Tom: ${req.tone}`,
+    req.guidelines && `Siga estas diretrizes de criação:\n${req.guidelines}`,
   ]
     .filter(Boolean)
     .join("\n");

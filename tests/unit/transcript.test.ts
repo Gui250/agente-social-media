@@ -17,4 +17,28 @@ describe("toMessages", () => {
       { role: "assistant", text: "Aqui está." },
     ]);
   });
+
+  it("attaches media made by tools to the next assistant message", () => {
+    const result = (name: string, value: unknown) => ({
+      type: "function_call_result", callId: name, name, status: "completed",
+      output: { type: "text", text: typeof value === "string" ? value : JSON.stringify(value) },
+    });
+    const history = [
+      { role: "user", content: "Faça um carrossel" },
+      result("generate_creative_script", { id: "s1", mediaIds: ["not-media"] }),
+      result("generate_creative_media", { status: "pronto", mediaIds: ["m1", "m2"] }),
+      { role: "assistant", status: "completed", content: [{ type: "output_text", text: "Pronto!" }] },
+      result("list_generations", [{ mediaId: "m3" }, { mediaId: null }]),
+      result("generate_creative_media", "Erro: o gerador falhou"),
+      { role: "assistant", status: "completed", content: [{ type: "output_text", text: "Vídeo pronto." }] },
+      { role: "assistant", status: "completed", content: [{ type: "output_text", text: "Algo mais?" }] },
+    ] as unknown as AgentInputItem[];
+
+    expect(toMessages(history)).toEqual([
+      { role: "user", text: "Faça um carrossel" },
+      { role: "assistant", text: "Pronto!", mediaIds: ["m1", "m2"] },
+      { role: "assistant", text: "Vídeo pronto.", mediaIds: ["m3"] },
+      { role: "assistant", text: "Algo mais?" },
+    ]);
+  });
 });

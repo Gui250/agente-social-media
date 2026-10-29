@@ -7,6 +7,7 @@ import * as posts from "@/controllers/posts";
 import * as scripts from "@/controllers/scripts";
 import { DomainError } from "@/lib/errors";
 import type { AgentContext } from "./context";
+import { getSkills } from "./skills";
 
 type Ctx = RunContext<AgentContext> | undefined;
 
@@ -34,11 +35,23 @@ export const generateCreativeScript = tool({
     objective: z.string().nullable().describe("Objetivo do criativo ou ajuste pedido"),
     audience: z.string().nullable().describe("Público-alvo"),
     tone: z.string().nullable().describe("Tom de voz"),
+    skills: z
+      .array(z.string())
+      .nullable()
+      .describe("Nomes das skills a aplicar no roteiro (lista nas suas instruções), até 3"),
   }),
   execute: safe(async (input, ctx) => {
     const row = await scripts.generate(ctx.userId, input);
     return { id: row.id, segment: row.segment, format: row.format, script: row.content };
   }),
+});
+
+export const loadSkill = tool({
+  name: "load_skill",
+  description:
+    "Lê as diretrizes completas de uma skill (lista de skills nas suas instruções) para usar ao orientar o usuário.",
+  parameters: z.object({ name: z.string() }),
+  execute: safe(async ({ name }) => (await getSkills([name]))[0].body),
 });
 
 export const listCreativeScripts = tool({
@@ -206,6 +219,7 @@ export const cancelPost = tool({
 export const tools = [
   generateCreativeScript,
   listCreativeScripts,
+  loadSkill,
   generateCreativeMedia,
   listGenerations,
   listConnectedAccounts,

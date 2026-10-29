@@ -50,6 +50,11 @@ All user-facing text is Portuguese.
 - **Agent** `src/agent/`: `socialMediaAgent` (OpenAI Agents SDK) is just another client of the
   controllers, so the chat and the screens share the same rules. Tools read `userId` from the run
   context, never from model arguments.
+- **Skills** `skills/<name>/SKILL.md` (front matter `name` + `description`, then guidelines),
+  loaded by `src/agent/skills.ts`. The instructions list only names and descriptions; the agent
+  reads a body with `load_skill` or passes names in `generate_creative_script.skills`, which hands
+  the bodies to the script writer. Add a skill by adding a folder; `next.config.ts` traces it into
+  the chat routes.
 - **Services** `src/services/`: `instagram.ts` (Graph API, Instagram Login), `facebook.ts`
   (Facebook Login for Business: one login connects every Instagram account linked to the user's
   Pages) and `publisher.ts` (one idempotent publishing step per call, dependencies injected).

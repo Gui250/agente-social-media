@@ -7,7 +7,7 @@ import { MediaUploader, type UploadedMedia } from "@/components/media/media-uplo
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
-import type { Message } from "@/agent/transcript";
+import type { Message, MessageMedia } from "@/agent/transcript";
 import type { Approval, ChatResponse } from "@/controllers/chat";
 import { ApprovalCard } from "./approval-card";
 
@@ -36,7 +36,8 @@ export function ChatPanel({
   }, [messages, approvals, pending]);
 
   function handle(res: ChatResponse) {
-    setMessages((m) => [...m, { role: "assistant", text: res.reply }]);
+    const media = res.status === "done" ? res.media : [];
+    setMessages((m) => [...m, { role: "assistant", text: res.reply, ...(media.length ? { media } : {}) }]);
     setApprovals(res.status === "needs_approval" ? res.approvals : []);
     setDecisions({});
     // Either way the server re-renders, so the history list picks up the new order/title.
@@ -123,6 +124,7 @@ export function ChatPanel({
             }
           >
             {m.text}
+            {m.media && <MediaGrid media={m.media} />}
           </div>
         ))}
         {approvals.map((a) => (
@@ -162,5 +164,25 @@ export function ChatPanel({
         <MediaUploader value={media} onChange={setMedia} disabled={pending || blocked} />
       </form>
     </div>
+  );
+}
+
+// Media the agent generated. URLs are signed and short-lived; reopening the chat signs them again.
+function MediaGrid({ media }: { media: MessageMedia[] }) {
+  return (
+    <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {media.map((m, i) => (
+        <li key={m.id}>
+          {m.kind === "image" ? (
+            <a href={m.url} target="_blank" rel="noreferrer" aria-label={`Abrir arte ${i + 1} em tamanho real`}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- signed Blob URL, not optimizable */}
+              <img src={m.url} alt={`Arte ${i + 1}`} className="aspect-[4/5] w-full rounded-md object-cover" />
+            </a>
+          ) : (
+            <video src={m.url} controls playsInline className="aspect-[9/16] w-full rounded-md bg-black" />
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }

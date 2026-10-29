@@ -52,4 +52,19 @@ describe("scripts.generate", () => {
     );
     expect(saved.id).toBe("s1");
   });
+
+  it("passes the chosen skills to the writer as guidelines, without saving them", async () => {
+    writeScript.mockResolvedValue(valid);
+    insertScript.mockImplementation(async (row) => ({ id: "s1", ...row }));
+    await generate("u1", { segment: "dentista", format: "video", skills: ["reels-que-retem"] });
+    expect(writeScript.mock.calls[0][0].guidelines).toContain("Abertura (0 a 3 s)");
+    expect(insertScript.mock.calls[0][0]).not.toHaveProperty("skills");
+  });
+
+  it("rejects an unknown skill before calling the writer", async () => {
+    await expect(generate("u1", { segment: "dentista", format: "video", skills: ["nao-existe"] })).rejects.toBeInstanceOf(
+      DomainError,
+    );
+    expect(writeScript).not.toHaveBeenCalled();
+  });
 });

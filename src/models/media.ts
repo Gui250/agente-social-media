@@ -33,6 +33,13 @@ export async function getMediaForUser(ids: string[], userId: string): Promise<Me
   });
 }
 
+// Like getMediaForUser but skips ids that no longer exist (e.g. released after publishing).
+export async function findMediaForUser(ids: string[], userId: string): Promise<MediaRow[]> {
+  if (ids.length === 0) return [];
+  return sql()<MediaRow[]>`
+    select * from media where id = any(${ids}::uuid[]) and user_id = ${userId}`;
+}
+
 // After a post is published: removes its media rows unless another post that can still be
 // published uses them. Returns the storage paths to delete from Blob.
 export async function releaseMedia(post: { id: string; user_id: string; media_ids: string[] }) {

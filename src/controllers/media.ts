@@ -3,8 +3,8 @@ import { randomUUID } from "node:crypto";
 import sharp from "sharp";
 import { z } from "zod";
 import { DomainError, notFound } from "@/lib/errors";
-import { objectInfo, putObject, readObject, removeObjects, uploadUrl } from "@/lib/storage";
-import { insertMedia, type MediaRow } from "@/models/media";
+import { downloadUrl, objectInfo, putObject, readObject, removeObjects, uploadUrl } from "@/lib/storage";
+import { findMediaForUser, insertMedia, type MediaRow } from "@/models/media";
 
 const IMAGE_MAX = 8 * 1024 * 1024;
 const PNG_MAX = 20 * 1024 * 1024; // converted to a (much smaller) JPEG on register
@@ -73,4 +73,11 @@ async function registerPngAsJpeg(userId: string, pngPath: string, reject: (messa
   await putObject(storagePath, jpeg, "image/jpeg");
   await removeObjects([pngPath]);
   return insertMedia({ user_id: userId, storage_path: storagePath, kind: "image", mime_type: "image/jpeg", size_bytes: jpeg.byteLength });
+}
+
+// Signed, short-lived URLs so the chat can show media from the private store. Missing ids
+// (already released) are skipped.
+export async function previews(userId: string, ids: string[]) {
+  const rows = await findMediaForUser(ids, userId);
+  return Promise.all(rows.map(async (m) => ({ id: m.id, kind: m.kind, url: await downloadUrl(m.storage_path) })));
 }
