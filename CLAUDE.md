@@ -102,8 +102,9 @@ All user-facing text is Portuguese.
   GETs. Once a post is published its media is deleted (`releaseMedia`) unless another pending post
   uses it. Media comes from the user's uploads or from `generate_creative_media`, which writes to
   the same store under `<userId>/` and records the prompt in `generations` (kept after the media is
-  released). Images are made inside the request; videos are started there and finished by
-  `videoTick()` on each `/api/cron/publish` tick.
+  released). Images are made inside the request. AI video is off since OpenAI shut down Sora
+  (2026-09-24): `creatives.generate` refuses video scripts; `startVideo`/`videoTick()` stay for a
+  future video provider.
 - Publishing is driven by an external scheduler → `/api/cron/publish` (Bearer `CRON_SECRET`; GET
   for Vercel Cron, POST otherwise). `vercel.json` only schedules the daily token refresh (Hobby
   allows daily crons).
