@@ -2,6 +2,7 @@ import "server-only";
 import { type RunContext, tool } from "@openai/agents";
 import { z } from "zod";
 import * as accounts from "@/controllers/accounts";
+import * as creatives from "@/controllers/creatives";
 import * as posts from "@/controllers/posts";
 import * as scripts from "@/controllers/scripts";
 import { DomainError } from "@/lib/errors";
@@ -96,6 +97,43 @@ export const listPosts = tool({
   }),
 });
 
+// Costs money (video is billed per second), so the user confirms in the UI first.
+export const generateCreativeMedia = tool({
+  name: "generate_creative_media",
+  description:
+    "Gera com IA as mídias de um roteiro salvo: uma imagem por slide (roteiro estático) ou um vídeo de 12 s (roteiro de vídeo). Imagens voltam prontas com os ids das mídias; vídeo fica em produção por alguns minutos (consulte com list_generations). O usuário confirma antes; não peça confirmação em texto.",
+  parameters: z.object({
+    scriptId: z.string().describe("id vindo de generate_creative_script ou list_creative_scripts"),
+    referenceMediaId: z
+      .string()
+      .nullable()
+      .describe("id de uma imagem anexada pelo usuário (ex.: foto do produto) para usar como referência"),
+  }),
+  needsApproval: true,
+  execute: safe((input, ctx) => creatives.generate(ctx.userId, input)),
+});
+
+export const listGenerations = tool({
+  name: "list_generations",
+  description:
+    "Lista as mídias geradas com IA mais recentes (status running, done ou failed) e seus ids de mídia. Use para saber se um vídeo ficou pronto.",
+  parameters: z.object({
+    scriptId: z.string().nullable().describe("Filtra por roteiro"),
+  }),
+  execute: safe(async ({ scriptId }, ctx) => {
+    const rows = await creatives.list(ctx.userId, { scriptId: scriptId ?? undefined });
+    return rows.map((g) => ({
+      id: g.id,
+      scriptId: g.script_id,
+      kind: g.kind,
+      status: g.status,
+      mediaId: g.media_id,
+      failureReason: g.failure_reason,
+      createdAt: g.created_at,
+    }));
+  }),
+});
+
 const postFields = {
   accountId: z.string().describe("id vindo de list_connected_accounts"),
   postType: z.enum(["image", "carousel", "reel"]),
@@ -168,6 +206,8 @@ export const cancelPost = tool({
 export const tools = [
   generateCreativeScript,
   listCreativeScripts,
+  generateCreativeMedia,
+  listGenerations,
   listConnectedAccounts,
   listPosts,
   schedulePost,

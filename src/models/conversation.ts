@@ -12,6 +12,8 @@ export type ConversationRow = {
   pending_approval_ids: string[];
 };
 
+export type ConversationSummary = { id: string; title: string | null; updated_at: Date };
+
 // Another user's id reads as "not found" (404).
 export async function getOrCreateConversation(userId: string, id?: string): Promise<ConversationRow> {
   if (id) {
@@ -38,4 +40,18 @@ export async function setPending(id: string, state: string, approvalIds: string[
 
 export async function clearPending(id: string) {
   await sql()`update conversations set pending_state = null, pending_approval_ids = '{}' where id = ${id}`;
+}
+
+// Title = start of the first user message. A run paused on its first message has no saved
+// history yet (it lives in pending_state), so its title is null.
+// ponytail: newest 50 only, paginate when someone needs older conversations.
+export async function listConversations(userId: string) {
+  return sql()<ConversationSummary[]>`
+    select id, updated_at,
+      (select left(m->>'content', 80) from jsonb_array_elements(history) m
+        where m->>'role' = 'user' limit 1) as title
+    from conversations
+    where user_id = ${userId} and (jsonb_array_length(history) > 0 or pending_state is not null)
+    order by updated_at desc
+    limit 50`;
 }

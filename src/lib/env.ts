@@ -5,14 +5,13 @@ import { DomainError } from "@/lib/errors";
 const schema = z.object({
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_MODEL: z.string().optional().transform((v) => v || undefined),
+  // AI media from creative scripts (src/services/creative-gen.ts).
+  IMAGE_MODEL: z.string().optional().transform((v) => v || "gpt-image-2"),
+  VIDEO_MODEL: z.string().optional().transform((v) => v || "sora-2"),
   DATABASE_URL: z.url(),
-  // S3-compatible bucket for post media (Neon Object Storage, R2, S3). Optional so scripts and
-  // chat work before it exists; see storageConfig().
-  S3_ENDPOINT: z.string().optional(),
-  S3_REGION: z.string().optional(),
-  S3_BUCKET: z.string().optional(),
-  S3_ACCESS_KEY_ID: z.string().optional(),
-  S3_SECRET_ACCESS_KEY: z.string().optional(),
+  // Private Vercel Blob store for post media (created with `vercel blob create-store`). Optional
+  // so scripts and chat work before it exists; see storageConfig().
+  BLOB_READ_WRITE_TOKEN: z.string().optional(),
   // Optional so script generation (US1) works before a Meta app exists; see instagramConfig().
   INSTAGRAM_APP_ID: z.string().optional(),
   INSTAGRAM_APP_SECRET: z.string().optional(),
@@ -73,19 +72,13 @@ export function facebookConfig() {
 }
 
 export function storageConfig() {
-  const {
-    S3_ENDPOINT: endpoint,
-    S3_REGION: region,
-    S3_BUCKET: bucket,
-    S3_ACCESS_KEY_ID: accessKeyId,
-    S3_SECRET_ACCESS_KEY: secretAccessKey,
-  } = env();
-  if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) {
+  const token = env().BLOB_READ_WRITE_TOKEN;
+  if (!token) {
     throw new DomainError(
       "storage_not_configured",
       "O envio de mídias ainda não foi configurado neste servidor.",
       502,
     );
   }
-  return { endpoint, region: region || "auto", bucket, accessKeyId, secretAccessKey };
+  return { token };
 }

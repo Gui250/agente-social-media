@@ -108,8 +108,11 @@ export default function PrivacidadePage() {
               você confirma, para publicá-lo na conta escolhida.
             </li>
             <li>
-              <strong>Neon</strong>: hospeda o banco de dados (contas de acesso, roteiros, posts) e
-              os arquivos de mídia.
+              <strong>Neon</strong>: hospeda o banco de dados (contas de acesso, roteiros, posts).
+            </li>
+            <li>
+              <strong>Vercel</strong>: hospeda o aplicativo e guarda, de forma privada, as mídias
+              enviadas até a publicação no Instagram.
             </li>
             <li>
               <strong>Provedor de hospedagem do site</strong>: executa a aplicação.

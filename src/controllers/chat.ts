@@ -3,6 +3,7 @@ import { type AgentInputItem, RunState, run, user } from "@openai/agents";
 import { socialMediaAgent } from "@/agent/agent";
 import { summarize } from "@/agent/approval-summary";
 import type { AgentContext } from "@/agent/context";
+import { type Message, toMessages } from "@/agent/transcript";
 import { DomainError } from "@/lib/errors";
 import { listAccounts } from "@/models/account";
 import {
@@ -45,6 +46,15 @@ async function contextFor(userId: string, conversationId?: string) {
   return { conversation, context };
 }
 
+async function approvalsFor(context: AgentContext, interruptions: Interruption[]): Promise<Approval[]> {
+  const accounts = await listAccounts(context.userId);
+  return interruptions.map((i) => ({
+    id: callId(i),
+    tool: i.name ?? "",
+    summary: summarize(i.name ?? "", i.arguments, { timezone: context.timezone, accounts }),
+  }));
+}
+
 // A paused run (tool needs approval) is stored server-side; only the call ids reach the client.
 async function finish(
   context: AgentContext,
@@ -58,12 +68,7 @@ async function finish(
   const conversationId = context.conversationId;
   const interruptions = (result.interruptions ?? []) as Interruption[];
   if (interruptions.length > 0) {
-    const accounts = await listAccounts(context.userId);
-    const approvals = interruptions.map((i) => ({
-      id: callId(i),
-      tool: i.name ?? "",
-      summary: summarize(i.name ?? "", i.arguments, { timezone: context.timezone, accounts }),
-    }));
+    const approvals = await approvalsFor(context, interruptions);
     await setPending(
       conversationId,
       result.state.toString(),
@@ -131,4 +136,21 @@ export async function approve(
 
   const result = await run(socialMediaAgent, state, runOptions(context));
   return finish(context, result);
+}
+
+export { listConversations } from "@/models/conversation";
+
+// Reopening a conversation: a paused run keeps its newest messages in pending_state, not in
+// history, so they (and the approval cards) come from the saved RunState.
+export async function openConversation(
+  userId: string,
+  conversationId: string,
+): Promise<{ messages: Message[]; approvals: Approval[] }> {
+  const { conversation, context } = await contextFor(userId, conversationId);
+  if (!conversation.pending_state) return { messages: toMessages(conversation.history), approvals: [] };
+  const state = await RunState.fromString(socialMediaAgent, conversation.pending_state);
+  return {
+    messages: toMessages(state.history),
+    approvals: await approvalsFor(context, state.getInterruptions() as Interruption[]),
+  };
 }

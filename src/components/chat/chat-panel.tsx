@@ -7,18 +7,24 @@ import { MediaUploader, type UploadedMedia } from "@/components/media/media-uplo
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
+import type { Message } from "@/agent/transcript";
 import type { Approval, ChatResponse } from "@/controllers/chat";
 import { ApprovalCard } from "./approval-card";
 
-type Message = { role: "user" | "assistant"; text: string };
-
-export function ChatPanel() {
+// The page remounts this (key = conversation id) whenever another conversation is opened.
+export function ChatPanel({
+  initialMessages = [],
+  initialApprovals = [],
+}: {
+  initialMessages?: Message[];
+  initialApprovals?: Approval[];
+}) {
   const router = useRouter();
   const conversationId = useSearchParams().get("c") ?? undefined;
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [media, setMedia] = useState<UploadedMedia[]>([]);
-  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>(initialApprovals);
   const [decisions, setDecisions] = useState<Record<string, boolean>>({});
   const [pending, setPending] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
@@ -33,7 +39,9 @@ export function ChatPanel() {
     setMessages((m) => [...m, { role: "assistant", text: res.reply }]);
     setApprovals(res.status === "needs_approval" ? res.approvals : []);
     setDecisions({});
+    // Either way the server re-renders, so the history list picks up the new order/title.
     if (res.conversationId !== conversationId) router.replace(`/chat?c=${res.conversationId}`);
+    else router.refresh();
   }
 
   async function send(e?: React.FormEvent) {
@@ -92,11 +100,7 @@ export function ChatPanel() {
           variant="outline"
           size="sm"
           disabled={pending}
-          onClick={() => {
-            setMessages([]);
-            setApprovals([]);
-            router.replace("/chat");
-          }}
+          onClick={() => router.push("/chat")}
         >
           Nova conversa
         </Button>

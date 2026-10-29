@@ -20,6 +20,14 @@ describe("agent tools approval flags", () => {
     expect(await requiresApproval("publish_post_now")).toBe(true);
   });
 
+  it("generate_creative_media always needs approval (it costs money)", async () => {
+    expect(await requiresApproval("generate_creative_media")).toBe(true);
+  });
+
+  it("list_generations does not need approval", async () => {
+    expect(await requiresApproval("list_generations")).toBe(false);
+  });
+
   it("cancel_post does not need approval", async () => {
     expect(await requiresApproval("cancel_post")).toBe(false);
   });

@@ -1,5 +1,5 @@
 import "server-only";
-import { downloadUrl } from "@/lib/storage";
+import { downloadUrl, removeObjects } from "@/lib/storage";
 import {
   accountsExpiringBefore,
   getAccessToken,
@@ -7,7 +7,7 @@ import {
   saveToken,
   setAccountStatus,
 } from "@/models/account";
-import { getMediaForUser } from "@/models/media";
+import { getMediaForUser, releaseMedia } from "@/models/media";
 import { claimDuePosts, type PostRow, postsInFlight, updatePost } from "@/models/post";
 import * as instagram from "@/services/instagram";
 import { advance, type PublisherDeps } from "@/services/publisher";
@@ -28,10 +28,24 @@ export function publisherDeps(): PublisherDeps {
     },
     mediaUrls: async (post) => {
       const media = await getMediaForUser(post.media_ids, post.user_id);
-      return Promise.all(media.map(async (m) => ({ kind: m.kind, url: await downloadUrl(m.storage_path, 3600) })));
+      return Promise.all(media.map(async (m) => ({ kind: m.kind, url: await downloadUrl(m.storage_path) })));
     },
-    update: (post, from, patch) => updatePost(post.id, from, patch),
+    update: async (post, from, patch) => {
+      const row = await updatePost(post.id, from, patch);
+      if (row.status === "published") await cleanUp(row);
+      return row;
+    },
   };
+}
+
+// Instagram keeps its own copy once published, so the file only costs Blob space (1 GB on Hobby).
+// Best effort: a failed cleanup must never undo a publish.
+async function cleanUp(post: PostRow) {
+  try {
+    await removeObjects(await releaseMedia(post));
+  } catch (e) {
+    console.error("cleanUp:", post.id, e);
+  }
 }
 
 export async function publishTick() {

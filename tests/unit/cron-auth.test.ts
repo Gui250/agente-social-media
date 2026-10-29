@@ -5,6 +5,9 @@ vi.mock("@/controllers/cron", () => ({
   publishTick: vi.fn(async () => ({ claimed: 0, published: 0, failed: 0, inProgress: 0 })),
   refreshTokens: vi.fn(async () => ({ refreshed: 0, expired: 0 })),
 }));
+vi.mock("@/controllers/creatives", () => ({
+  videoTick: vi.fn(async () => ({ done: 0, failed: 0, running: 0, errors: 0 })),
+}));
 
 const SECRET = "s".repeat(32);
 let publish: (req: Request) => Promise<Response>;

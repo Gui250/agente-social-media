@@ -13,6 +13,7 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
   const media = await import("@/models/media");
   const account = await import("@/models/account");
   const conversation = await import("@/models/conversation");
+  const generation = await import("@/models/generation");
 
   let alice: string;
   let bob: string;
@@ -40,7 +41,9 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
       user_id: alice, segment: "dentista", objective: null, audience: null, tone: null, format: "static",
       content: { title: "t", hook: "h", blocks: [{ label: "1", durationSeconds: null, visual: "v", text: "t" }], caption: "c", cta: "c", hashtags: [] },
     })).id;
+    await generation.insertGeneration({ user_id: alice, script_id: ids.script, kind: "image", prompt: "p" });
     ids.conversation = (await conversation.getOrCreateConversation(alice)).id;
+    await conversation.saveHistory(ids.conversation, [{ role: "user", content: "Oi" }]);
   });
 
   afterAll(async () => {
@@ -56,6 +59,8 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
     expect(await script.listScripts(alice)).toHaveLength(1);
     expect(await account.listAccounts(alice)).toHaveLength(1);
     expect(await media.getMediaForUser([ids.media], alice)).toHaveLength(1);
+    expect(await generation.listGenerations(alice, { scriptId: ids.script })).toHaveLength(1);
+    expect(await conversation.listConversations(alice)).toMatchObject([{ id: ids.conversation, title: "Oi" }]);
   });
 
   it("another user gets 404 or empty lists", async () => {
@@ -69,11 +74,27 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
     expect(await post.listPosts(bob)).toEqual([]);
     expect(await script.listScripts(bob)).toEqual([]);
     expect(await account.listAccounts(bob)).toEqual([]);
+    expect(await conversation.listConversations(bob)).toEqual([]);
+    expect(await generation.listGenerations(bob)).toEqual([]);
   });
 
   it("another user can't delete the account", async () => {
     await account.deleteAccount(bob, ids.account);
     expect(await account.listAccounts(alice)).toHaveLength(1);
+  });
+
+  it("releaseMedia keeps media another pending post still needs", async () => {
+    const shared = await media.insertMedia({
+      user_id: alice, storage_path: `${alice}/shared.jpg`, kind: "image", mime_type: "image/jpeg", size_bytes: 1,
+    });
+    const base = { user_id: alice, account_id: null, script_id: null, post_type: "image" as const, caption: "c", media_ids: [shared.id], scheduled_at: null };
+    const published = await post.insertPost({ ...base, status: "draft" });
+    const other = await post.insertPost({ ...base, status: "draft" });
+
+    expect(await media.releaseMedia(published)).toEqual([]); // `other` still uses it
+    await sql`update posts set status = 'cancelled' where id = ${other.id}`;
+    expect(await media.releaseMedia(published)).toEqual([`${alice}/shared.jpg`]);
+    await notFound(media.getMediaForUser([shared.id], alice));
   });
 
   it("timestamps come back as ISO strings and sizes as numbers", async () => {

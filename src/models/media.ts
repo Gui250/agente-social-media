@@ -32,3 +32,18 @@ export async function getMediaForUser(ids: string[], userId: string): Promise<Me
     return m;
   });
 }
+
+// After a post is published: removes its media rows unless another post that can still be
+// published uses them. Returns the storage paths to delete from Blob.
+export async function releaseMedia(post: { id: string; user_id: string; media_ids: string[] }) {
+  const rows = await sql()<{ storage_path: string }[]>`
+    delete from media m
+    where m.id = any(${post.media_ids}::uuid[]) and m.user_id = ${post.user_id}
+      and not exists (
+        select 1 from posts p
+        where p.id <> ${post.id} and m.id = any(p.media_ids)
+          and p.status in ('draft', 'scheduled', 'publishing', 'failed')
+      )
+    returning storage_path`;
+  return rows.map((r) => r.storage_path);
+}

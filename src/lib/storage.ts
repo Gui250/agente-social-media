@@ -1,54 +1,65 @@
 import "server-only";
-import {
-  DeleteObjectCommand,
-  GetObjectCommand,
-  HeadObjectCommand,
-  PutObjectCommand,
-  S3Client,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { BlobNotFoundError, del, head, issueSignedToken, presignUrl, put } from "@vercel/blob";
 import { storageConfig } from "@/lib/env";
 
-// Any S3-compatible bucket (Neon Object Storage, Cloudflare R2, AWS S3). Private: the browser
-// uploads with a presigned PUT and Instagram downloads with a presigned GET.
-let client: S3Client | undefined;
+// Private Vercel Blob store. The browser uploads with a presigned PUT and Instagram downloads with
+// a presigned GET; nothing is ever public. Auth comes from BLOB_READ_WRITE_TOKEN.
+const access = "private";
+const HOUR = 60 * 60 * 1000;
 
-function s3() {
-  const c = storageConfig();
-  client ??= new S3Client({
-    endpoint: c.endpoint,
-    region: c.region,
-    forcePathStyle: true, // Neon Object Storage only supports path-style URLs
-    credentials: { accessKeyId: c.accessKeyId, secretAccessKey: c.secretAccessKey },
+// Type and size are also enforced by Blob itself on the PUT.
+export async function uploadUrl(pathname: string, contentType: string, maxBytes: number) {
+  const { token } = storageConfig();
+  const signed = await issueSignedToken({
+    token,
+    pathname,
+    operations: ["put"],
+    allowedContentTypes: [contentType],
+    maximumSizeInBytes: maxBytes,
+    validUntil: Date.now() + HOUR,
   });
-  return { client, bucket: c.bucket };
+  const { presignedUrl } = await presignUrl(signed, {
+    operation: "put",
+    access,
+    pathname,
+    allowedContentTypes: [contentType],
+    maximumSizeInBytes: maxBytes,
+    addRandomSuffix: false,
+    allowOverwrite: false,
+    validUntil: Date.now() + 10 * 60 * 1000,
+  });
+  return presignedUrl;
 }
 
-export function uploadUrl(key: string, contentType: string, expiresIn = 600) {
-  const { client, bucket } = s3();
-  return getSignedUrl(client, new PutObjectCommand({ Bucket: bucket, Key: key, ContentType: contentType }), {
-    expiresIn,
+// Server-side write for AI-generated media: same private store and "<userId>/" prefix as uploads.
+export async function putObject(pathname: string, body: Uint8Array, contentType: string) {
+  await put(pathname, Buffer.from(body), {
+    access,
+    contentType,
+    token: storageConfig().token,
+    addRandomSuffix: false,
+    allowOverwrite: false,
   });
 }
 
-export function downloadUrl(key: string, expiresIn = 3600) {
-  const { client, bucket } = s3();
-  return getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn });
+export async function downloadUrl(pathname: string) {
+  const { token } = storageConfig();
+  const signed = await issueSignedToken({ token, pathname, operations: ["get"], validUntil: Date.now() + HOUR });
+  const { presignedUrl } = await presignUrl(signed, { operation: "get", access, pathname });
+  return presignedUrl;
 }
 
-// null when the object doesn't exist (the upload never happened).
-export async function objectInfo(key: string) {
-  const { client, bucket } = s3();
+// null when the blob doesn't exist (the upload never happened).
+export async function objectInfo(pathname: string) {
   try {
-    const head = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-    return { contentType: head.ContentType ?? "", size: head.ContentLength ?? 0 };
+    const blob = await head(pathname, { token: storageConfig().token });
+    return { contentType: blob.contentType, size: blob.size };
   } catch (e) {
-    if ((e as { name?: string }).name === "NotFound") return null;
+    if (e instanceof BlobNotFoundError) return null;
     throw e;
   }
 }
 
-export async function removeObject(key: string) {
-  const { client, bucket } = s3();
-  await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+export async function removeObjects(pathnames: string[]) {
+  if (pathnames.length) await del(pathnames, { token: storageConfig().token });
 }

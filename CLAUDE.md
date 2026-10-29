@@ -20,9 +20,9 @@ npm run db:migrate                            # apply db/migrations/*.sql to DAT
 migrations applied (a Neon branch or `docker run -p 54329:5432 -e POSTGRES_PASSWORD=test postgres:18`),
 never production: `claim_due_posts` claims every due post. Tests never call OpenAI or Instagram.
 
-Environment: `OPENAI_API_KEY` lives in `.env`; `DATABASE_URL` (Neon, pooled), S3 bucket, Instagram
-app and `CRON_SECRET` in `.env.local` (template: `.env.example`). S3 and Instagram variables are
-optional until uploads/publishing are used.
+Environment: `OPENAI_API_KEY` lives in `.env`; `DATABASE_URL` (Neon, pooled), `BLOB_READ_WRITE_TOKEN`,
+Instagram app and `CRON_SECRET` in `.env.local` (template: `.env.example`). Blob and Instagram
+variables are optional until uploads/publishing are used.
 
 ## What this is
 
@@ -54,18 +54,26 @@ All user-facing text is Portuguese.
   (Facebook Login for Business: one login connects every Instagram account linked to the user's
   Pages) and `publisher.ts` (one idempotent publishing step per call, dependencies injected).
   Each account has a `login_type`; `connFor()` picks `graph.instagram.com` or
-  `graph.facebook.com/v26.0` for publishing.
+  `graph.facebook.com/v26.0` for publishing. `creative-gen.ts` (OpenAI images/Sora, same API key)
+  and `overlay.tsx` (slide text drawn with `next/og` + `sharp` and `assets/fonts/`, never by the
+  image model) back `src/controllers/creatives.ts`.
 
 ## Rules that are easy to break
 
-- `schedule_post` and `publish_post_now` must keep `needsApproval: true`. A paused run is saved as
+- `schedule_post`, `publish_post_now` and `generate_creative_media` (costs money) must keep
+  `needsApproval: true`. A paused run is saved as
   `conversations.pending_state` and resumed only by `chat.approve`, which clears it first.
 - The agent run context is plain data (`src/agent/context.ts`): `RunState.toString()` serializes it
   into the database, so never put clients or tokens in it.
 - Instagram tokens are only in `instagram_tokens` and only read in `src/models/account.ts`; they
   never reach the browser.
-- Media lives in a private S3-compatible bucket (`src/lib/storage.ts`): the browser uploads with a
-  presigned PUT under `<userId>/`, `/api/media` checks and registers it, Instagram gets presigned GETs.
+- Media lives in a private Vercel Blob store (`src/lib/storage.ts`): the browser uploads with a
+  presigned PUT under `<userId>/`, `/api/media` checks and registers it, Instagram gets presigned
+  GETs. Once a post is published its media is deleted (`releaseMedia`) unless another pending post
+  uses it. Media comes from the user's uploads or from `generate_creative_media`, which writes to
+  the same store under `<userId>/` and records the prompt in `generations` (kept after the media is
+  released). Images are made inside the request; videos are started there and finished by
+  `videoTick()` on each `/api/cron/publish` tick.
 - Publishing is driven by an external scheduler → `/api/cron/publish` (Bearer `CRON_SECRET`; GET
   for Vercel Cron, POST otherwise). `vercel.json` only schedules the daily token refresh (Hobby
   allows daily crons).

@@ -2,26 +2,26 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { DomainError, notFound } from "@/lib/errors";
-import { objectInfo, removeObject, uploadUrl } from "@/lib/storage";
+import { objectInfo, removeObjects, uploadUrl } from "@/lib/storage";
 import { insertMedia, type MediaRow } from "@/models/media";
 
 const IMAGE_MAX = 8 * 1024 * 1024;
 const VIDEO_MAX = 100 * 1024 * 1024;
-const TYPES: Record<string, { kind: MediaRow["kind"]; ext: string }> = {
-  "image/jpeg": { kind: "image", ext: "jpg" },
-  "video/mp4": { kind: "video", ext: "mp4" },
-  "video/quicktime": { kind: "video", ext: "mov" },
+const TYPES: Record<string, { kind: MediaRow["kind"]; ext: string; max: number }> = {
+  "image/jpeg": { kind: "image", ext: "jpg", max: IMAGE_MAX },
+  "video/mp4": { kind: "video", ext: "mp4", max: VIDEO_MAX },
+  "video/quicktime": { kind: "video", ext: "mov", max: VIDEO_MAX },
 };
 const unsupported = "Formato não suportado: envie imagem JPEG ou vídeo MP4/MOV.";
 
 export const UploadRequest = z.object({ mimeType: z.string().max(100) });
 
-// The browser uploads straight to the bucket (contracts/http-api.md › Mídia) under "<userId>/".
+// The browser uploads straight to the Blob store (contracts/http-api.md › Mídia) under "<userId>/".
 export async function requestUpload(userId: string, mimeType: string) {
   const type = TYPES[mimeType];
   if (!type) throw new DomainError("invalid_media", unsupported);
   const storagePath = `${userId}/${randomUUID()}.${type.ext}`;
-  return { storagePath, uploadUrl: await uploadUrl(storagePath, mimeType) };
+  return { storagePath, uploadUrl: await uploadUrl(storagePath, mimeType, type.max) };
 }
 
 // After the upload: check the object's real metadata and register it. Invalid files are deleted.
@@ -35,7 +35,7 @@ export async function register(userId: string, storagePath: string) {
 
   const kind = TYPES[info.contentType]?.kind;
   const reject = async (message: string) => {
-    await removeObject(storagePath);
+    await removeObjects([storagePath]);
     throw new DomainError("invalid_media", message);
   };
   if (!kind) return reject(unsupported);
