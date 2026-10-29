@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
 import { api } from "@/lib/api-client";
 
 export function GenerateForm() {
@@ -36,13 +35,8 @@ export function GenerateForm() {
         <Label htmlFor="segment">Segmento *</Label>
         <Input id="segment" name="segment" minLength={2} maxLength={120} required placeholder="Ex.: loja de roupas fitness" />
       </div>
-      <div className="grid gap-1.5">
-        <Label htmlFor="format">Formato *</Label>
-        <NativeSelect id="format" name="format" defaultValue="video">
-          <option value="video">Vídeo curto (Reels)</option>
-          <option value="static">Post estático / carrossel</option>
-        </NativeSelect>
-      </div>
+      {/* Only static while there is no AI video provider (Sora is gone). */}
+      <input type="hidden" name="format" value="static" />
       <div className="grid gap-1.5">
         <Label htmlFor="objective">Objetivo</Label>
         <Input id="objective" name="objective" maxLength={300} placeholder="Ex.: agendar avaliações" />

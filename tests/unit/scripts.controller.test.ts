@@ -59,8 +59,8 @@ describe("scripts.generate", () => {
   it("passes the chosen skills to the writer as guidelines, without saving them", async () => {
     writeScript.mockResolvedValue(valid);
     insertScript.mockImplementation(async (row) => ({ id: "s1", ...row }));
-    await generate("u1", { segment: "dentista", format: "video", skills: ["reels-que-retem"] });
-    expect(writeScript.mock.calls[0][0].guidelines).toContain("Abertura (0 a 3 s)");
+    await generate("u1", { segment: "dentista", format: "video", skills: ["carrossel-que-converte"] });
+    expect(writeScript.mock.calls[0][0].guidelines).toContain("Slide 1 (capa)");
     expect(insertScript.mock.calls[0][0]).not.toHaveProperty("skills");
   });
 
