@@ -1,10 +1,11 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { APIError } from "openai";
+import { type ArtReview, approved, reviewArt } from "@/agent/art-critic";
 import { videoPrompt, visualPrompt } from "@/agent/visual-prompt";
 import { DomainError } from "@/lib/errors";
 import { putObject, readObject } from "@/lib/storage";
-import { getScript } from "@/models/creative-script";
+import { type CreativeScript, getScript } from "@/models/creative-script";
 import { finishGeneration, insertGeneration, listGenerations, runningVideos } from "@/models/generation";
 import { getMediaForUser, insertMedia } from "@/models/media";
 import * as gen from "@/services/creative-gen";
@@ -42,9 +43,40 @@ async function provider<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// Best effort: a critic failure never blocks the art, it just goes out unreviewed.
+async function review(bytes: Uint8Array, script: CreativeScript, index: number): Promise<ArtReview | null> {
+  try {
+    const r = await reviewArt(bytes, { idea: script.hook, text: script.blocks[index].text, artDirection: script.artDirection });
+    console.log("art review:", { slide: index + 1, score: r.score, critical: r.critical });
+    return r;
+  } catch (e) {
+    console.error("art review failed:", e);
+    return null;
+  }
+}
+
+// One slide: generate, have the critic score it, and redo a rejected one once with the critic's
+// fixes, keeping the better of the two. ponytail: up to 2 images per slide; a second retry would
+// risk the 300 s request limit.
+async function slideImage(script: CreativeScript, index: number, brand: { segment: string }, reference?: Uint8Array) {
+  const make = async (prompt: string) => ({
+    prompt,
+    bytes: await withText(await gen.generateImage(prompt, reference), script.blocks[index].text),
+  });
+  const first = await make(visualPrompt(script, index, brand));
+  const firstReview = await review(first.bytes, script, index);
+  if (!firstReview || approved(firstReview)) return first;
+
+  const second = await make(`${first.prompt}
+Corrija em relação à versão anterior: ${[...firstReview.critical, firstReview.fixes].join(" ")}`);
+  const secondReview = await review(second.bytes, script, index);
+  const better = secondReview && (approved(secondReview) || secondReview.score > firstReview.score);
+  return better ? second : first;
+}
+
 export type GenerateResult = { status: "pronto" | "em produção"; mediaIds: string[]; generationId?: string };
 
-// Static script: one image per slide, generated in parallel (well under the 300 s limit) and
+// Static script: one reviewed image per slide (slideImage), generated in parallel (well under the 300 s limit) and
 // stored only after all succeed, so a failed slide leaves nothing behind.
 // Video script: starts the job and returns at once; videoTick() finishes it.
 export async function generate(
@@ -65,10 +97,7 @@ export async function generate(
 
   const images = await provider(() =>
     Promise.all(
-      script.content.blocks.map(async (block, i) => {
-        const prompt = visualPrompt(script.content, i, brand);
-        return { prompt, bytes: await withText(await gen.generateImage(prompt, reference), block.text) };
-      }),
+      script.content.blocks.map((_, i) => slideImage(script.content, i, brand, reference)),
     ),
   );
   const mediaIds: string[] = [];

@@ -42,7 +42,9 @@ Cena (campo "visual"): descreva uma foto ou plano que só esse criativo teria, c
 - o lugar brasileiro reconhecível (balcão de padaria, azulejo, rua de bairro) e texturas reais;
 - o assunto na metade de baixo, com o terço de cima livre para o texto.
 Nunca: pessoa posando e sorrindo para a câmera, aperto de mão, duas pessoas numa mesa de escritório,
-fundo liso de estúdio, logo centralizado, ícones ou "composição institucional".
+fundo liso de estúdio, logo centralizado, ícones 3D flutuantes, gradientes genéricos, excesso de
+brilho e efeitos, elementos decorativos sem função ou estética de template corporativo. Só use um
+desses se houver um motivo criativo claro.
 
 Reels: a cena 1 já começa em movimento, no meio da ação, sem logo nem "oi, pessoal". Use pelo menos
 dois destes: pessoa real aparecendo, texto na tela, narração, visual de celular sem acabamento,

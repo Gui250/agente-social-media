@@ -15,7 +15,9 @@ A identidade visual define cores e tom da marca, não deixa o criativo sem graç
 também pode ter um conceito surpreendente.
 
 Estrutura obrigatória:
-- concept: escreva primeiro. O padrão escolhido e a ideia do criativo em uma frase.
+- concepts: escreva primeiro. Três direções bem diferentes entre si (padrão, ideia e linguagem
+  visual: ex. fotografia conceitual, close extremo, cena impossível), uma frase cada.
+- concept: a direção escolhida entre as três e por que ela para a rolagem desse público.
 - title: nome curto do criativo.
 - hook: a primeira frase ou cena, feita para prender a atenção nos primeiros 3 segundos.
 - artDirection: a direção de arte comum a todas as cenas/slides, em 2 ou 3 frases: estilo de foto,
@@ -37,9 +39,10 @@ Não invente preços, endereços, promoções ou números que o usuário não in
 // Same shape as CreativeScript without length/regex limits, which strict structured outputs
 // don't reliably support; the real limits are checked with creativeScriptFor() below.
 const Output = z.object({
-  // Thinking aid, first so the model commits to an idea before writing. Not saved:
-  // creativeScriptFor() drops it.
-  concept: z.string().describe("Padrão escolhido e a ideia em uma frase"),
+  // Thinking aids, first so the model weighs three ideas and commits to one before writing.
+  // Not saved: creativeScriptFor() drops them.
+  concepts: z.array(z.string()).describe("Três direções de arte diferentes, uma frase cada"),
+  concept: z.string().describe("A direção escolhida e por quê"),
   title: z.string(),
   hook: z.string().describe("Gancho de abertura"),
   artDirection: z.string().describe("Estilo visual comum a todas as cenas/slides"),
@@ -73,6 +76,8 @@ export type ScriptRequest = {
   guidelines?: string | null;
   // From extract_visual_identity: colors and style the visuals should follow.
   visualIdentity?: string | null;
+  // The user's latest scripts, so a new one doesn't repeat their idea or composition.
+  recent?: string[];
 };
 
 export async function writeScript(req: ScriptRequest): Promise<CreativeScript> {
@@ -85,6 +90,8 @@ export async function writeScript(req: ScriptRequest): Promise<CreativeScript> {
     req.visualIdentity &&
       `Identidade visual da marca (use estas cores e este estilo nas descrições visuais):\n${req.visualIdentity}`,
     req.guidelines && `Siga estas diretrizes de criação:\n${req.guidelines}`,
+    req.recent?.length &&
+      `Criativos recentes deste cliente. Não repita a ideia, o gancho nem a composição:\n${req.recent.join("\n")}`,
   ]
     .filter(Boolean)
     .join("\n");

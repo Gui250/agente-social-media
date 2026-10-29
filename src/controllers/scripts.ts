@@ -44,7 +44,10 @@ export async function generate(userId: string, input: GenerateInput) {
   // ALWAYS_SKILL goes into every script: without it the writer falls back to safe, institutional copy.
   const names = [...new Set([ALWAYS_SKILL, ...(skills ?? [])])];
   const guidelines = (await getSkills(names, userId)).map((s) => s.body).join("\n\n");
-  const content = await writeScript({ ...req, guidelines, visualIdentity });
+  const recent = (await listScripts(userId, { limit: 5 })).map(
+    ({ content: c }) => `- ${c.title}: "${c.hook}"${c.artDirection ? ` (${c.artDirection})` : ""}`,
+  );
+  const content = await writeScript({ ...req, guidelines, visualIdentity, recent });
   return insertScript({ user_id: userId, ...req, content });
 }
 

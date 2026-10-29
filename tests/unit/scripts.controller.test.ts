@@ -3,12 +3,14 @@ import { DomainError } from "@/lib/errors";
 
 const writeScript = vi.fn();
 const insertScript = vi.fn();
+const listScripts = vi.fn(async () => [] as unknown[]);
 
 vi.mock("@/agent/script-writer", () => ({ writeScript }));
 vi.mock("@/models/skill", () => ({ listUserSkills: async () => [] }));
 vi.mock("@/models/creative-script", async (orig) => ({
   ...(await orig<typeof import("@/models/creative-script")>()),
   insertScript,
+  listScripts,
 }));
 
 const { generate } = await import("@/controllers/scripts");
@@ -67,6 +69,15 @@ describe("scripts.generate", () => {
     insertScript.mockImplementation(async (row) => ({ id: "s1", ...row }));
     await generate("u1", { segment: "dentista", format: "static" });
     expect(writeScript.mock.calls[0][0].guidelines).toContain("Cena impossível");
+  });
+
+  it("shows the writer the user's recent scripts so it doesn't repeat them", async () => {
+    writeScript.mockResolvedValue(valid);
+    insertScript.mockImplementation(async (row) => ({ id: "s1", ...row }));
+    listScripts.mockResolvedValueOnce([{ content: { ...valid, title: "Velho", hook: "Gancho velho" } }]);
+    await generate("u1", { segment: "dentista", format: "static" });
+    expect(listScripts).toHaveBeenCalledWith("u1", { limit: 5 });
+    expect(writeScript.mock.calls[0][0].recent).toEqual(['- Velho: "Gancho velho"']);
   });
 
   it("passes the visual identity to the writer without saving it", async () => {

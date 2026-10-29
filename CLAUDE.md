@@ -68,7 +68,8 @@ All user-facing text is Portuguese.
   Each account has a `login_type`; `connFor()` picks `graph.instagram.com` or
   `graph.facebook.com/v26.0` for publishing. `creative-gen.ts` (OpenAI images/Sora, same API key)
   and `overlay.tsx` (slide text drawn with `next/og` + `sharp` and `assets/fonts/`, never by the
-  image model) back `src/controllers/creatives.ts`.
+  image model) back `src/controllers/creatives.ts`. Each slide is scored by `src/agent/art-critic.ts` (vision
+  rubric, `MIN_SCORE`); a rejected one is redone once with the critic's fixes.
 
 ## Rules that are easy to break
 

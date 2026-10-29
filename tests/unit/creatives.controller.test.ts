@@ -8,6 +8,7 @@ const insertGeneration = vi.fn();
 const runningVideos = vi.fn();
 const finishGeneration = vi.fn();
 const putObject = vi.fn();
+const reviewArt = vi.fn();
 const gen = {
   VIDEO_SIZE: { width: 720, height: 1280 },
   generateImage: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("@/models/media", () => ({ insertMedia, getMediaForUser: vi.fn() }));
 vi.mock("@/models/generation", () => ({ insertGeneration, runningVideos, finishGeneration, listGenerations: vi.fn() }));
 vi.mock("@/lib/storage", () => ({ putObject, readObject: vi.fn() }));
 vi.mock("@/services/creative-gen", () => gen);
+vi.mock("@/agent/art-critic", async (orig) => ({ ...(await orig<typeof import("@/agent/art-critic")>()), reviewArt }));
 vi.mock("@/services/overlay", () => ({
   withText: async (bytes: Uint8Array, text: string) => new Uint8Array([...bytes, text.length]),
   fitTo: async (bytes: Uint8Array) => bytes,
@@ -45,6 +47,7 @@ describe("creatives.generate", () => {
     vi.clearAllMocks();
     insertMedia.mockImplementation(async (row) => ({ id: `m-${row.storage_path}`, ...row }));
     insertGeneration.mockImplementation(async (row) => ({ id: "g1", ...row }));
+    reviewArt.mockResolvedValue({ score: 90, critical: [], fixes: "" });
   });
 
   it("static: stores one JPEG per slide under the user's folder, in slide order", async () => {
@@ -61,6 +64,35 @@ describe("creatives.generate", () => {
     ]);
     expect(putObject.mock.calls.map((c) => [...c[1]])).toEqual([[1, 1], [1, 2]]); // slide text overlaid
     expect(insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ kind: "image", status: "done" }));
+  });
+
+  it("static: redoes a slide the critic rejects, with its fixes, and keeps the better one", async () => {
+    getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "static", content: { ...content(null), blocks: [content(null).blocks[0]] } });
+    gen.generateImage.mockResolvedValueOnce(new Uint8Array([1])).mockResolvedValueOnce(new Uint8Array([2]));
+    reviewArt
+      .mockResolvedValueOnce({ score: 60, critical: ["letras desenhadas"], fixes: "Tire o letreiro do fundo." })
+      .mockResolvedValueOnce({ score: 88, critical: [], fixes: "" });
+
+    await generate("u1", { scriptId: "s1" });
+
+    expect(gen.generateImage).toHaveBeenCalledTimes(2);
+    expect(gen.generateImage.mock.calls[1][0]).toMatch(/letras desenhadas Tire o letreiro do fundo\.$/);
+    expect([...putObject.mock.calls[0][1]]).toEqual([2, 1]); // the second image
+    expect(insertGeneration.mock.calls[0][0].prompt).toContain("Corrija");
+  });
+
+  it("static: keeps the first image when the retry scores lower, and ships unreviewed if the critic fails", async () => {
+    getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "static", content: content(null) });
+    gen.generateImage.mockImplementation(async (prompt: string) => new Uint8Array([prompt.includes("Corrija") ? 2 : 1]));
+    reviewArt
+      .mockResolvedValueOnce({ score: 70, critical: [], fixes: "x" })
+      .mockRejectedValueOnce(new Error("vision down"))
+      .mockResolvedValueOnce({ score: 50, critical: [], fixes: "" });
+
+    await generate("u1", { scriptId: "s1" });
+
+    expect(gen.generateImage).toHaveBeenCalledTimes(3); // slide 1 twice, slide 2 once
+    expect(putObject.mock.calls.map((c) => c[1][0])).toEqual([1, 1]);
   });
 
   it("static: stores nothing when one slide fails at the provider", async () => {

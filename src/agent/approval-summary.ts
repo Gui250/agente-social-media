@@ -24,7 +24,7 @@ export function summarize(
 
   if (toolName === "publish_post_now" && args.postId) return "Publicar agora o post selecionado";
   if (toolName === "generate_creative_media") {
-    return "Gerar com IA as mídias do roteiro (imagens ou vídeo). Cada geração tem custo.";
+    return "Gerar com IA as mídias do roteiro (imagens ou vídeo). Cada geração tem custo; artes reprovadas na revisão automática são refeitas uma vez.";
   }
 
   const username = accounts.find((a) => a.id === args.accountId)?.username ?? "conta desconhecida";
