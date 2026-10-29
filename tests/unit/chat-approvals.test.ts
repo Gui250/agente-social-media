@@ -27,7 +27,12 @@ vi.mock("@/models/conversation", () => ({
   clearPending: vi.fn(async () => calls.push("clearPending")),
   setPending: vi.fn(),
   saveHistory: vi.fn(),
+  setSummary: vi.fn(async (_id: string, summary: string) => calls.push(`setSummary:${summary}`)),
 }));
+// Runs after() callbacks once the test awaits them, like Next does after the response.
+const afterQueue: (() => Promise<void>)[] = [];
+vi.mock("next/server", () => ({ after: (fn: () => Promise<void>) => afterQueue.push(fn) }));
+vi.mock("@/agent/summarizer", () => ({ summarizeConversation: async () => "Agendamento de post" }));
 vi.mock("@openai/agents", () => ({
   RunState: { fromString: vi.fn(async () => state) },
   run: vi.fn(async () => {
@@ -75,6 +80,13 @@ describe("chat.approve", () => {
     await approve("u1", { conversationId: "c1", decisions: [{ id: "call-1", approve: true }] });
     expect(calls).toEqual(["clearPending", "approve", "run"]);
     expect(state.approve).toHaveBeenCalledWith(interruption);
+  });
+
+  it("saves the conversation summary after the reply", async () => {
+    await approve("u1", { conversationId: "c1", decisions: [{ id: "call-1", approve: true }] });
+    expect(calls).not.toContain("setSummary:Agendamento de post"); // not before the response
+    await Promise.all(afterQueue.splice(0).map((fn) => fn()));
+    expect(calls.at(-1)).toBe("setSummary:Agendamento de post");
   });
 
   it("rejects when the user declines", async () => {

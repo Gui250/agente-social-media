@@ -20,7 +20,18 @@ export function oauthCallback(
 
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
-    if (!code || !state) return back({ erro: "Conexão cancelada." });
+    if (!code || !state) {
+      // Meta sends error/error_reason/error_description (or error_code/error_message from the
+      // dialog itself) instead of a code when the login fails. No code here, so nothing secret to log.
+      const p = url.searchParams;
+      const reason = p.get("error_description") ?? p.get("error_message") ?? p.get("error_reason") ?? p.get("error");
+      p.delete("code");
+      console.error("oauth callback without code", Object.fromEntries(p));
+      const errorCode = p.get("error_code");
+      return back({
+        erro: reason ? `Conexão não concluída: ${reason}${errorCode ? ` (código ${errorCode})` : ""}` : "Conexão cancelada.",
+      });
+    }
     try {
       const accounts = await connect(user.id, code, state);
       return back({ conectada: accounts.map((a) => `@${a.username}`).join(", ") });

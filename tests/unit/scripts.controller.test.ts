@@ -61,6 +61,14 @@ describe("scripts.generate", () => {
     expect(insertScript.mock.calls[0][0]).not.toHaveProperty("skills");
   });
 
+  it("passes the visual identity to the writer without saving it", async () => {
+    writeScript.mockResolvedValue(valid);
+    insertScript.mockImplementation(async (row) => ({ id: "s1", ...row }));
+    await generate("u1", { segment: "dentista", format: "static", visualIdentity: "Azul #1A2B4C, minimalista" });
+    expect(writeScript.mock.calls[0][0].visualIdentity).toBe("Azul #1A2B4C, minimalista");
+    expect(insertScript.mock.calls[0][0]).not.toHaveProperty("visualIdentity");
+  });
+
   it("rejects an unknown skill before calling the writer", async () => {
     await expect(generate("u1", { segment: "dentista", format: "video", skills: ["nao-existe"] })).rejects.toBeInstanceOf(
       DomainError,

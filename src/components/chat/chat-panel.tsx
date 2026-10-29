@@ -4,18 +4,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MediaUploader, type UploadedMedia } from "@/components/media/media-uploader";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
 import type { Message, MessageMedia } from "@/agent/transcript";
-import type { Approval, ChatResponse } from "@/controllers/chat";
+import type { Approval, ChatResponse, SkillOption } from "@/controllers/chat";
 import { ApprovalCard } from "./approval-card";
 
 // The page remounts this (key = conversation id) whenever another conversation is opened.
 export function ChatPanel({
+  skills = [],
   initialMessages = [],
   initialApprovals = [],
 }: {
+  skills?: SkillOption[];
   initialMessages?: Message[];
   initialApprovals?: Approval[];
 }) {
@@ -27,7 +30,20 @@ export function ChatPanel({
   const [approvals, setApprovals] = useState<Approval[]>(initialApprovals);
   const [decisions, setDecisions] = useState<Record<string, boolean>>({});
   const [pending, setPending] = useState(false);
+  const [active, setActive] = useState(0);
+  const [dismissed, setDismissed] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+
+  // "/" at the start of a word opens the skill menu, filtered by what follows it.
+  const slash = input.match(/(?:^|\s)\/([\w-]*)$/);
+  const matches =
+    slash && dismissed !== input ? skills.filter((s) => s.name.startsWith(slash[1].toLowerCase())) : [];
+  const highlighted = Math.min(active, matches.length - 1);
+
+  function pickSkill(name: string) {
+    setInput(`${input.slice(0, input.length - (slash?.[1].length ?? 0) - 1)}/${name} `);
+    setActive(0);
+  }
 
   // Braces matter: scrollIntoView returns a Promise in recent browsers, and an effect may only
   // return a cleanup function.
@@ -111,7 +127,8 @@ export function ChatPanel({
         {messages.length === 0 && (
           <p className="text-sm text-muted-foreground">
             Diga o segmento do seu negócio e o formato (vídeo curto ou post estático) para receber
-            um roteiro. Para agendar, anexe a imagem ou o vídeo e diga quando publicar.
+            um roteiro. Digite / para escolher uma skill. Anexe seu logo para extrair as cores e a
+            identidade visual da marca. Para agendar, anexe a imagem ou o vídeo e diga quando publicar.
           </p>
         )}
         {messages.map((m, i) => (
@@ -145,18 +162,70 @@ export function ChatPanel({
           <p className="text-sm text-muted-foreground">Confirme ou recuse a ação acima para continuar.</p>
         )}
         <div className="flex gap-2">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) send(e);
-            }}
-            placeholder="Escreva sua mensagem…"
-            aria-label="Mensagem"
-            maxLength={4000}
-            rows={2}
-            disabled={blocked}
-          />
+          <div className="relative flex-1">
+            {matches.length > 0 && (
+              <ul
+                id="skill-menu"
+                role="listbox"
+                aria-label="Skills"
+                className="absolute bottom-full left-0 z-10 mb-1 grid w-full max-w-md gap-0.5 rounded-md border bg-popover p-1 text-sm shadow-md"
+              >
+                {matches.map((s, i) => (
+                  <li
+                    key={s.name}
+                    id={`skill-${s.name}`}
+                    role="option"
+                    aria-selected={i === highlighted}
+                    className={`cursor-pointer rounded px-2 py-1.5 ${i === highlighted ? "bg-muted" : ""}`}
+                    onMouseDown={(e) => {
+                      e.preventDefault(); // keep focus in the textarea
+                      pickSkill(s.name);
+                    }}
+                  >
+                    <span className="font-medium">/{s.name}</span>
+                    <span className="block text-xs text-muted-foreground">{s.description}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Textarea
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setActive(0);
+              }}
+              onKeyDown={(e) => {
+                if (matches.length > 0) {
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    const step = e.key === "ArrowDown" ? 1 : -1;
+                    setActive((highlighted + step + matches.length) % matches.length);
+                    return;
+                  }
+                  if (e.key === "Enter" || e.key === "Tab") {
+                    e.preventDefault();
+                    pickSkill(matches[highlighted].name);
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    setDismissed(input);
+                    return;
+                  }
+                }
+                if (e.key === "Enter" && !e.shiftKey) send(e);
+              }}
+              placeholder="Escreva sua mensagem… (/ para usar uma skill)"
+              aria-label="Mensagem"
+              role="combobox"
+              aria-expanded={matches.length > 0}
+              aria-controls="skill-menu"
+              aria-autocomplete="list"
+              aria-activedescendant={matches.length > 0 ? `skill-${matches[highlighted].name}` : undefined}
+              maxLength={4000}
+              rows={2}
+              disabled={blocked}
+            />
+          </div>
           <Button type="submit" disabled={pending || blocked || !input.trim()}>
             Enviar
           </Button>
@@ -168,21 +237,48 @@ export function ChatPanel({
 }
 
 // Media the agent generated. URLs are signed and short-lived; reopening the chat signs them again.
+// Images open in a dialog inside the app (not a new tab), so "Voltar"/Esc returns to the chat.
 function MediaGrid({ media }: { media: MessageMedia[] }) {
+  const [open, setOpen] = useState<number | null>(null);
+  const current = open === null ? null : media[open];
   return (
-    <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-      {media.map((m, i) => (
-        <li key={m.id}>
-          {m.kind === "image" ? (
-            <a href={m.url} target="_blank" rel="noreferrer" aria-label={`Abrir arte ${i + 1} em tamanho real`}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- signed Blob URL, not optimizable */}
-              <img src={m.url} alt={`Arte ${i + 1}`} className="aspect-[4/5] w-full rounded-md object-cover" />
-            </a>
-          ) : (
-            <video src={m.url} controls playsInline className="aspect-[9/16] w-full rounded-md bg-black" />
+    <>
+      <ul className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {media.map((m, i) => (
+          <li key={m.id}>
+            {m.kind === "image" ? (
+              <button type="button" className="block w-full" onClick={() => setOpen(i)} aria-label={`Ampliar arte ${i + 1}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- signed Blob URL, not optimizable */}
+                <img src={m.url} alt={`Arte ${i + 1}`} className="aspect-[4/5] w-full rounded-md object-cover" />
+              </button>
+            ) : (
+              <video src={m.url} controls playsInline className="aspect-[9/16] w-full rounded-md bg-black" />
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <Dialog open={current !== null} onOpenChange={(o) => !o && setOpen(null)}>
+        <DialogContent className="max-h-[95vh] sm:max-w-3xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Arte {open !== null && open + 1}</DialogTitle>
+          </DialogHeader>
+          {current && (
+            // eslint-disable-next-line @next/next/no-img-element -- signed Blob URL, not optimizable
+            <img src={current.url} alt={`Arte ${open! + 1}`} className="max-h-[70vh] w-full rounded-md object-contain" />
           )}
-        </li>
-      ))}
-    </ul>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(null)}>
+              Voltar
+            </Button>
+            {current && (
+              <a href={current.url} target="_blank" rel="noreferrer" className={buttonVariants()}>
+                Abrir original
+              </a>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

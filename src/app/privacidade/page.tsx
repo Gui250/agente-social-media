@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-// Fill in before publishing: who is responsible for the data (LGPD "controlador") and how users
+// Who is responsible for the data (LGPD "controlador") and how users
 // reach them. Meta also shows this page to users during the Facebook/Instagram login.
 const RESPONSAVEL = {
-  nome: "[NOME DA EMPRESA OU RESPONSÁVEL]",
-  documento: "[CNPJ ou CPF]",
-  email: "[E-MAIL DE CONTATO]",
+  nome: "MS ASSESSORIA DE MARKETING LTDA",
+  documento: "CNPJ 60.683.436/0001-54",
+  email: "trafegoms@gmail.com",
 };
 const ATUALIZADA_EM = "29 de outubro de 2026";
 

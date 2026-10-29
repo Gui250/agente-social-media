@@ -55,6 +55,11 @@ All user-facing text is Portuguese.
   reads a body with `load_skill` or passes names in `generate_creative_script.skills`, which hands
   the bodies to the script writer. Add a skill by adding a folder; `next.config.ts` traces it into
   the chat routes.
+  Typing `/` in the chat opens a menu of skills (`chat.skillOptions()`); the instructions tell the
+  agent that `/name` in a message means that skill was chosen.
+- **Visual identity** `extract_visual_identity` → `src/controllers/brand.ts` → `src/agent/brand-reader.ts`
+  (vision model, structured output): colors (hex), logo, typography and style of an attached image.
+  Not stored; the agent passes a summary in `generate_creative_script.visualIdentity`.
 - **Services** `src/services/`: `instagram.ts` (Graph API, Instagram Login), `facebook.ts`
   (Facebook Login for Business: one login connects every Instagram account linked to the user's
   Pages) and `publisher.ts` (one idempotent publishing step per call, dependencies injected).

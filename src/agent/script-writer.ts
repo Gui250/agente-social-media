@@ -54,6 +54,8 @@ export type ScriptRequest = {
   tone?: string | null;
   // Bodies of the skills the agent chose (src/agent/skills.ts).
   guidelines?: string | null;
+  // From extract_visual_identity: colors and style the visuals should follow.
+  visualIdentity?: string | null;
 };
 
 export async function writeScript(req: ScriptRequest): Promise<CreativeScript> {
@@ -63,6 +65,8 @@ export async function writeScript(req: ScriptRequest): Promise<CreativeScript> {
     req.objective && `Objetivo: ${req.objective}`,
     req.audience && `Público-alvo: ${req.audience}`,
     req.tone && `Tom: ${req.tone}`,
+    req.visualIdentity &&
+      `Identidade visual da marca (use estas cores e este estilo nas descrições visuais):\n${req.visualIdentity}`,
     req.guidelines && `Siga estas diretrizes de criação:\n${req.guidelines}`,
   ]
     .filter(Boolean)

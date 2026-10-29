@@ -1,7 +1,10 @@
 import "server-only";
 import { type AgentInputItem, RunState, run, user } from "@openai/agents";
+import { after } from "next/server";
 import { socialMediaAgent } from "@/agent/agent";
 import { summarize } from "@/agent/approval-summary";
+import { listSkills } from "@/agent/skills";
+import { summarizeConversation } from "@/agent/summarizer";
 import type { AgentContext } from "@/agent/context";
 import { type Message, type MessageMedia, toMessages } from "@/agent/transcript";
 import { previews } from "@/controllers/media";
@@ -12,9 +15,11 @@ import {
   getOrCreateConversation,
   saveHistory,
   setPending,
+  setSummary,
 } from "@/models/conversation";
 import { getProfile } from "@/models/profile";
 
+export type SkillOption = { name: string; description: string };
 export type Approval = { id: string; tool: string; summary: string };
 export type ChatResponse =
   | { conversationId: string; status: "done"; reply: string; media: MessageMedia[] }
@@ -83,6 +88,7 @@ async function finish(
     };
   }
   await saveHistory(conversationId, result.history);
+  refreshSummary(conversationId, result.history);
   // Media made in this run is attached to the final reply (the last assistant message).
   const last = toMessages(result.history).at(-1);
   const mediaIds = last?.role === "assistant" ? (last.mediaIds ?? []) : [];
@@ -92,6 +98,20 @@ async function finish(
     reply: String(result.finalOutput ?? ""),
     media: await previews(context.userId, mediaIds),
   };
+}
+
+// After the reply is sent, so the chat never waits on it. Best effort: the history falls back to
+// the first message. ponytail: one small model call per reply; only summarize every few turns if
+// the cost ever matters.
+function refreshSummary(conversationId: string, history: AgentInputItem[]) {
+  after(async () => {
+    try {
+      const summary = await summarizeConversation(history);
+      if (summary) await setSummary(conversationId, summary);
+    } catch (e) {
+      console.error("refreshSummary:", conversationId, e);
+    }
+  });
 }
 
 async function withMedia(userId: string, messages: Message[]): Promise<Message[]> {
@@ -156,6 +176,11 @@ export async function approve(
 }
 
 export { listConversations } from "@/models/conversation";
+
+// For the "/" menu in the chat: names and descriptions only, the bodies stay on the server.
+export async function skillOptions(): Promise<SkillOption[]> {
+  return (await listSkills()).map(({ name, description }) => ({ name, description }));
+}
 
 // Reopening a conversation: a paused run keeps its newest messages in pending_state, not in
 // history, so they (and the approval cards) come from the saved RunState.

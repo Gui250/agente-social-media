@@ -26,6 +26,7 @@ export const GenerateInput = z.object({
   audience: optionalText,
   tone: optionalText,
   skills: z.array(z.string().max(60)).max(3).nullish(),
+  visualIdentity: z.string().trim().max(1000).nullish().transform((v) => v || null),
 });
 export type GenerateInput = z.input<typeof GenerateInput>;
 
@@ -37,9 +38,9 @@ export async function generate(userId: string, input: GenerateInput) {
       "Informe o segmento (2 a 120 caracteres) e o formato: vídeo ou estático.",
     );
   }
-  const { skills, ...req } = parsed.data;
+  const { skills, visualIdentity, ...req } = parsed.data;
   const guidelines = skills?.length ? (await getSkills(skills)).map((s) => s.body).join("\n\n") : null;
-  const content = await writeScript({ ...req, guidelines });
+  const content = await writeScript({ ...req, guidelines, visualIdentity });
   return insertScript({ user_id: userId, ...req, content });
 }
 

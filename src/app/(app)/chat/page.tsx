@@ -48,7 +48,9 @@ async function History({ searchParams }: { searchParams: Search }) {
               r.id === current && "bg-muted",
             )}
           >
-            <span className="block truncate">{r.title ?? "Aguardando confirmação"}</span>
+            <span className="block truncate" title={r.title ?? undefined}>
+              {r.title ?? "Aguardando confirmação"}
+            </span>
             <span className="block text-xs text-muted-foreground">
               {formatInTimeZone(r.updated_at, user.timezone)}
             </span>
@@ -73,11 +75,13 @@ async function History({ searchParams }: { searchParams: Search }) {
 }
 
 async function Conversation({ searchParams }: { searchParams: Search }) {
-  const [user, id] = await Promise.all([requireUser(), selectedId(searchParams)]);
-  if (!id) return <ChatPanel key="new" />;
+  const [user, id, skills] = await Promise.all([requireUser(), selectedId(searchParams), chat.skillOptions()]);
+  if (!id) return <ChatPanel key="new" skills={skills} />;
   const opened = await chat.openConversation(user.id, id).catch((err) => {
     if (err instanceof DomainError && err.status === 404) notFound();
     throw err;
   });
-  return <ChatPanel key={id} initialMessages={opened.messages} initialApprovals={opened.approvals} />;
+  return (
+    <ChatPanel key={id} skills={skills} initialMessages={opened.messages} initialApprovals={opened.approvals} />
+  );
 }

@@ -2,6 +2,7 @@ import "server-only";
 import { type RunContext, tool } from "@openai/agents";
 import { z } from "zod";
 import * as accounts from "@/controllers/accounts";
+import * as brand from "@/controllers/brand";
 import * as creatives from "@/controllers/creatives";
 import * as posts from "@/controllers/posts";
 import * as scripts from "@/controllers/scripts";
@@ -39,6 +40,10 @@ export const generateCreativeScript = tool({
       .array(z.string())
       .nullable()
       .describe("Nomes das skills a aplicar no roteiro (lista nas suas instruções), até 3"),
+    visualIdentity: z
+      .string()
+      .nullable()
+      .describe("Resumo da identidade visual extraída nesta conversa (cores com hex, estilo), se houver"),
   }),
   execute: safe(async (input, ctx) => {
     const row = await scripts.generate(ctx.userId, input);
@@ -52,6 +57,14 @@ export const loadSkill = tool({
     "Lê as diretrizes completas de uma skill (lista de skills nas suas instruções) para usar ao orientar o usuário.",
   parameters: z.object({ name: z.string() }),
   execute: safe(async ({ name }) => (await getSkills([name]))[0].body),
+});
+
+export const extractVisualIdentity = tool({
+  name: "extract_visual_identity",
+  description:
+    "Extrai a identidade visual (cores com hex, logo, tipografia e estilo) de uma imagem anexada pelo usuário, como o logo ou uma arte da marca.",
+  parameters: z.object({ mediaId: z.string().describe("id de uma imagem em [mídias anexadas: ...]") }),
+  execute: safe(({ mediaId }, ctx) => brand.extractIdentity(ctx.userId, mediaId)),
 });
 
 export const listCreativeScripts = tool({
@@ -220,6 +233,7 @@ export const tools = [
   generateCreativeScript,
   listCreativeScripts,
   loadSkill,
+  extractVisualIdentity,
   generateCreativeMedia,
   listGenerations,
   listConnectedAccounts,
