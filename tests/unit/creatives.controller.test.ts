@@ -139,17 +139,12 @@ describe("creatives.generate", () => {
     expect(insertMedia).not.toHaveBeenCalled();
   });
 
-  it("video: starts the job and records it as running, without storing media", async () => {
+  it("video: refused before calling the provider (OpenAI shut Sora down)", async () => {
     getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "video", content: content(4) });
-    gen.startVideo.mockResolvedValue("job-1");
 
-    const res = await generate("u1", { scriptId: "s1" });
-
-    expect(res).toMatchObject({ status: "em produção", mediaIds: [] });
-    expect(insertGeneration).toHaveBeenCalledWith(
-      expect.objectContaining({ user_id: "u1", kind: "video", provider_job_id: "job-1" }),
-    );
-    expect(putObject).not.toHaveBeenCalled();
+    await expect(generate("u1", { scriptId: "s1" })).rejects.toMatchObject({ code: "video_unavailable" });
+    expect(gen.startVideo).not.toHaveBeenCalled();
+    expect(insertGeneration).not.toHaveBeenCalled();
   });
 });
 

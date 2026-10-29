@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { APIError } from "openai";
 import { type ArtReview, approved, reviewArt } from "@/agent/art-critic";
-import { videoPrompt, visualPrompt } from "@/agent/visual-prompt";
+import { visualPrompt } from "@/agent/visual-prompt";
 import { activeKit, logoBytes, primaryColor } from "@/controllers/brands";
 import { DomainError } from "@/lib/errors";
 import { putObject, readObject } from "@/lib/storage";
@@ -10,7 +10,7 @@ import { type CreativeScript, getScript } from "@/models/creative-script";
 import { finishGeneration, insertGeneration, listGenerations, runningVideos } from "@/models/generation";
 import { getMediaForUser, insertMedia } from "@/models/media";
 import * as gen from "@/services/creative-gen";
-import { fitTo, withLogo, withText } from "@/services/overlay";
+import { withLogo, withText } from "@/services/overlay";
 
 const VIDEO_TIMEOUT_MS = 60 * 60 * 1000;
 const BATCH = 10;
@@ -92,8 +92,6 @@ export type GenerateResult = {
 // Static script: one reviewed image per slide (slideImage), generated in parallel (well under the 300 s limit) and
 // stored only after all succeed, so a failed slide leaves nothing behind.
 // The logo goes on after the review, so the critic never takes the real logo for an invented one.
-// Video script: starts the job and returns at once; videoTick() finishes it.
-// ponytail: brand color and logo only reach images; a video would need ffmpeg to burn them in.
 // brandId: the conversation's active brand. Its kit fills the color and logo the agent didn't pass
 // (an attached logo or an explicit color wins) and keeps its forbidden elements out of the images.
 export async function generate(
@@ -108,15 +106,15 @@ export async function generate(
     throw new DomainError("invalid_input", "A cor da marca precisa estar no formato #RRGGBB.");
   }
   const brand = { segment: script.segment, color: brandColor?.toUpperCase() ?? null, forbidden: kit?.proibidos };
-  const reference = referenceMediaId ? await referenceImage(userId, referenceMediaId) : undefined;
-
+  // OpenAI shut down Sora (sora-2, /v1/videos) on 2026-09-24 and has no other video model.
+  // ponytail: video stays off until another video provider is wired into creative-gen.ts.
   if (script.format === "video") {
-    const prompt = videoPrompt(script.content, brand);
-    const firstFrame = reference && (await fitTo(reference, gen.VIDEO_SIZE));
-    const jobId = await provider(() => gen.startVideo(prompt, firstFrame));
-    const row = await insertGeneration({ user_id: userId, script_id: scriptId, kind: "video", prompt, provider_job_id: jobId });
-    return { status: "em produção", mediaIds: [], generationId: row.id };
+    throw new DomainError(
+      "video_unavailable",
+      "A geração de vídeo por IA não está disponível: o modelo de vídeo da OpenAI foi desativado. Use o roteiro para gravar o Reels e anexe o vídeo, ou peça um carrossel/post estático para gerar as imagens.",
+    );
   }
+  const reference = referenceMediaId ? await referenceImage(userId, referenceMediaId) : undefined;
 
   const images = await provider(() =>
     Promise.all(

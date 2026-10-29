@@ -155,11 +155,11 @@ export const listPosts = tool({
   }),
 });
 
-// Costs money (video is billed per second), so the user confirms in the UI first.
+// Costs money, so the user confirms in the UI first.
 export const generateCreativeMedia = tool({
   name: "generate_creative_media",
   description:
-    "Gera com IA as mídias de um roteiro salvo: uma imagem por slide (roteiro estático) ou um vídeo de 12 s (roteiro de vídeo). Imagens voltam prontas com os ids das mídias; vídeo fica em produção por alguns minutos (consulte com list_generations). Com marca ativa, cor e logo vêm do brand kit. O usuário confirma antes; não peça confirmação em texto.",
+    "Gera com IA as imagens de um roteiro estático salvo: uma imagem por slide, prontas com os ids das mídias. Não gera vídeo (indisponível): nunca chame com roteiro de vídeo. Com marca ativa, cor e logo vêm do brand kit. O usuário confirma antes; não peça confirmação em texto.",
   parameters: z.object({
     scriptId: z.string().describe("id vindo de generate_creative_script ou list_creative_scripts"),
     referenceMediaId: z
