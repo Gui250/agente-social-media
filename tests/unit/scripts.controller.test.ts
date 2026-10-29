@@ -62,6 +62,13 @@ describe("scripts.generate", () => {
     expect(insertScript.mock.calls[0][0]).not.toHaveProperty("skills");
   });
 
+  it("always hands the writer the disruptive-creative guidelines", async () => {
+    writeScript.mockResolvedValue(valid);
+    insertScript.mockImplementation(async (row) => ({ id: "s1", ...row }));
+    await generate("u1", { segment: "dentista", format: "static" });
+    expect(writeScript.mock.calls[0][0].guidelines).toContain("Cena impossível");
+  });
+
   it("passes the visual identity to the writer without saving it", async () => {
     writeScript.mockResolvedValue(valid);
     insertScript.mockImplementation(async (row) => ({ id: "s1", ...row }));

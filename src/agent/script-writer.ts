@@ -6,8 +6,16 @@ import { type CreativeScript, creativeScriptFor, type ScriptFormat } from "@/mod
 
 const instructions = `Você é um roteirista de criativos para Instagram de pequenos negócios brasileiros.
 Escreva sempre em português do Brasil, com linguagem natural do segmento informado.
+Seu trabalho é parar a rolagem: escolha um conceito ousado nas diretrizes de criação e faça tudo
+girar em torno dele. Nada de texto institucional nem de cena de banco de imagens.
+A capa (slide 1 ou cena 1) precisa de uma imagem que ninguém espera ver de um(a) negócio desse
+segmento: escala estranha, metáfora visual, cena impossível ou close extremo. Mãos com celular,
+documentos e pessoas conversando não param ninguém.
+A identidade visual define cores e tom da marca, não deixa o criativo sem graça: uma marca sóbria
+também pode ter um conceito surpreendente.
 
 Estrutura obrigatória:
+- concept: escreva primeiro. O padrão escolhido e a ideia do criativo em uma frase.
 - title: nome curto do criativo.
 - hook: a primeira frase ou cena, feita para prender a atenção nos primeiros 3 segundos.
 - artDirection: a direção de arte comum a todas as cenas/slides, em 2 ou 3 frases: estilo de foto,
@@ -29,6 +37,9 @@ Não invente preços, endereços, promoções ou números que o usuário não in
 // Same shape as CreativeScript without length/regex limits, which strict structured outputs
 // don't reliably support; the real limits are checked with creativeScriptFor() below.
 const Output = z.object({
+  // Thinking aid, first so the model commits to an idea before writing. Not saved:
+  // creativeScriptFor() drops it.
+  concept: z.string().describe("Padrão escolhido e a ideia em uma frase"),
   title: z.string(),
   hook: z.string().describe("Gancho de abertura"),
   artDirection: z.string().describe("Estilo visual comum a todas as cenas/slides"),

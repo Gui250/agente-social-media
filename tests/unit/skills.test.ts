@@ -16,7 +16,7 @@ describe("parseSkill", () => {
 describe("skills/ folder", () => {
   it("every skill has a name matching its use, a description and a body", async () => {
     const skills = await listSkills();
-    expect(skills.map((s) => s.name)).toEqual(["carrossel-que-converte", "negocio-local", "reels-que-retem"]);
+    expect(skills.map((s) => s.name)).toEqual(["carrossel-que-converte", "criativo-disruptivo", "negocio-local", "reels-que-retem"]);
     for (const s of skills) {
       expect(s.description.length).toBeGreaterThan(20);
       expect(s.body.length).toBeGreaterThan(100);

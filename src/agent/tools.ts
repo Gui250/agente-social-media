@@ -133,7 +133,7 @@ export const generateCreativeMedia = tool({
     referenceMediaId: z
       .string()
       .nullable()
-      .describe("id de uma imagem anexada pelo usuário (ex.: foto do produto) para usar como referência"),
+      .describe("id de uma foto real anexada pelo usuário (produto, lugar, equipe) para usar como referência; nunca o logo"),
   }),
   needsApproval: true,
   execute: safe((input, ctx) => creatives.generate(ctx.userId, input)),
