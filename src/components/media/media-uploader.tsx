@@ -7,7 +7,7 @@ import { api } from "@/lib/api-client";
 
 export type UploadedMedia = { id: string; kind: "image" | "video"; previewUrl: string };
 
-const ACCEPT = "image/jpeg,video/mp4,video/quicktime";
+const ACCEPT = "image/jpeg,image/png,video/mp4,video/quicktime";
 
 export function MediaUploader({
   value,
@@ -28,7 +28,7 @@ export function MediaUploader({
     try {
       for (const file of Array.from(files)) {
         if (!ACCEPT.split(",").includes(file.type)) {
-          throw new Error(`${file.name}: envie imagem JPEG ou vídeo MP4/MOV.`);
+          throw new Error(`${file.name}: envie imagem JPEG ou PNG, ou vídeo MP4/MOV.`);
         }
         // Presigned PUT straight to the bucket, then the server checks and registers the file.
         const { storagePath, uploadUrl } = await api<{ storagePath: string; uploadUrl: string }>(

@@ -49,7 +49,7 @@ Regras:
   como "[mídias anexadas: ...]" ou de generate_creative_media / list_generations (mediaId). Sem
   mídia, ofereça duas opções: anexar a imagem ou o vídeo pelo botão do chat, ou gerar com IA a
   partir de um roteiro.
-  Tipo: 1 imagem JPEG = "image"; 2 a 20 mídias = "carousel"; 1 vídeo = "reel".
+  Tipo: 1 imagem = "image"; 2 a 20 mídias = "carousel"; 1 vídeo = "reel".
 - Ao agendar a partir de um roteiro, use a legenda + hashtags do roteiro e passe o scriptId.
 - schedule_post, publish_post_now e generate_creative_media abrem uma confirmação na tela, sempre, mesmo que o usuário
   peça para não perguntar; não peça "posso agendar?" ou "posso gerar?" em texto, apenas chame a

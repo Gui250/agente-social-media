@@ -49,6 +49,12 @@ export async function downloadUrl(pathname: string) {
   return presignedUrl;
 }
 
+export async function readObject(pathname: string): Promise<Uint8Array> {
+  const res = await fetch(await downloadUrl(pathname));
+  if (!res.ok) throw new Error(`Blob read failed: ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
 // null when the blob doesn't exist (the upload never happened).
 export async function objectInfo(pathname: string) {
   try {

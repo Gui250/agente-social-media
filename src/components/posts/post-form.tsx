@@ -118,7 +118,7 @@ export function PostForm({
         <div className="grid gap-1.5">
           <Label htmlFor="postType">Tipo</Label>
           <NativeSelect id="postType" value={postType} onChange={(e) => setPostType(e.target.value as EditablePost["postType"])}>
-            <option value="image">Imagem (1 JPEG)</option>
+            <option value="image">Imagem (1 foto)</option>
             <option value="carousel">Carrossel (2 a 20)</option>
             <option value="reel">Reels (1 vídeo)</option>
           </NativeSelect>

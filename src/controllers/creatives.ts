@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { APIError } from "openai";
 import { videoPrompt, visualPrompt } from "@/agent/visual-prompt";
 import { DomainError } from "@/lib/errors";
-import { downloadUrl, putObject } from "@/lib/storage";
+import { putObject, readObject } from "@/lib/storage";
 import { getScript } from "@/models/creative-script";
 import { finishGeneration, insertGeneration, listGenerations, runningVideos } from "@/models/generation";
 import { getMediaForUser, insertMedia } from "@/models/media";
@@ -24,9 +24,7 @@ async function store(userId: string, bytes: Uint8Array, kind: "image" | "video")
 async function referenceImage(userId: string, mediaId: string) {
   const [media] = await getMediaForUser([mediaId], userId);
   if (media.kind !== "image") throw new DomainError("invalid_media", "A referência precisa ser uma imagem JPEG.");
-  const res = await fetch(await downloadUrl(media.storage_path));
-  if (!res.ok) throw new Error(`reference download failed: ${res.status}`);
-  return new Uint8Array(await res.arrayBuffer());
+  return readObject(media.storage_path);
 }
 
 // Provider errors become messages the agent can explain; anything else is a bug and propagates.

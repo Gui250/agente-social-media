@@ -43,7 +43,7 @@ export function validatePostInput(
 
   const kinds = deps.media.map((m) => m.kind);
   if (input.postType === "image" && !(kinds.length === 1 && kinds[0] === "image")) {
-    throw invalid("Post de imagem precisa de exatamente 1 imagem JPEG.");
+    throw invalid("Post de imagem precisa de exatamente 1 imagem.");
   }
   if (input.postType === "carousel" && (kinds.length < 2 || kinds.length > 20)) {
     throw invalid("Carrossel precisa de 2 a 20 mídias.");
