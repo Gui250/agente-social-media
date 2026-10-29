@@ -196,7 +196,7 @@ export async function approve(
   return finish(context, await runAgent(state, context, emit));
 }
 
-export { listConversations } from "@/models/conversation";
+export { deleteConversation as remove, listConversations } from "@/models/conversation";
 
 // For the "/" menu in the chat: names and descriptions only, the bodies stay on the server.
 export async function skillOptions(userId: string): Promise<SkillOption[]> {

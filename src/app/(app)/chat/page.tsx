@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
 import { ChatPanel } from "@/components/chat/chat-panel";
+import { DeleteConversation } from "@/components/chat/delete-conversation";
 import * as chat from "@/controllers/chat";
 import { requireUser } from "@/lib/auth";
 import { formatInTimeZone } from "@/lib/datetime";
@@ -39,14 +40,11 @@ async function History({ searchParams }: { searchParams: Search }) {
     <ul className="grid gap-1">
       {rows.length === 0 && <li className="text-sm text-muted-foreground">Nenhuma conversa ainda.</li>}
       {rows.map((r) => (
-        <li key={r.id}>
+        <li key={r.id} className={cn("flex items-center gap-1 rounded-md hover:bg-muted", r.id === current && "bg-muted")}>
           <Link
             href={`/chat?c=${r.id}`}
             aria-current={r.id === current ? "page" : undefined}
-            className={cn(
-              "block rounded-md px-2 py-1.5 text-sm hover:bg-muted",
-              r.id === current && "bg-muted",
-            )}
+            className="block min-w-0 flex-1 px-2 py-1.5 text-sm"
           >
             <span className="block truncate" title={r.title ?? undefined}>
               {r.title ?? "Aguardando confirmação"}
@@ -55,6 +53,7 @@ async function History({ searchParams }: { searchParams: Search }) {
               {formatInTimeZone(r.updated_at, user.timezone)}
             </span>
           </Link>
+          <DeleteConversation id={r.id} title={r.title ?? "Aguardando confirmação"} current={r.id === current} />
         </li>
       ))}
     </ul>

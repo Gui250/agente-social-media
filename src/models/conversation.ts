@@ -60,3 +60,9 @@ export async function listConversations(userId: string) {
     order by updated_at desc
     limit 50`;
 }
+
+// Scripts, posts and media made in the conversation are their own rows and stay.
+export async function deleteConversation(userId: string, id: string) {
+  const { count } = await sql()`delete from conversations where id = ${id} and user_id = ${userId}`;
+  if (!count) throw notFound("Conversa", "a");
+}

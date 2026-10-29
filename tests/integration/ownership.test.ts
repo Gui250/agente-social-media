@@ -85,6 +85,7 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
     expect(await generation.listGenerations(bob)).toEqual([]);
     expect(await skill.listUserSkills(bob)).toEqual([]);
     await notFound(skill.deleteUserSkill(bob, ids.skill));
+    await notFound(conversation.deleteConversation(bob, ids.conversation));
   });
 
   it("another user can't delete the account", async () => {
