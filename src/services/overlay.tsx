@@ -18,11 +18,22 @@ export async function withText(image: Uint8Array, text: string): Promise<Uint8Ar
     <div style={{ width: W, height: H, display: "flex", position: "relative" }}>
       {/* eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text -- Satori, not the DOM */}
       <img src={src} width={W} height={H} style={{ position: "absolute", top: 0, left: 0 }} />
+      {/* Darkens the top so white text reads even on a bright photo. */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: W,
+          height: H * 0.55,
+          backgroundImage: "linear-gradient(to bottom, rgba(0,0,0,0.6), rgba(0,0,0,0))",
+        }}
+      />
       <div
         style={{
           display: "flex",
           padding: "96px 80px",
-          fontSize: text.length > 80 ? 56 : 76,
+          fontSize: text.length > 120 ? 48 : text.length > 60 ? 60 : 76,
           lineHeight: 1.08,
           color: "white",
           fontWeight: 800,

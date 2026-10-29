@@ -9,6 +9,9 @@ export type ScriptFormat = z.infer<typeof ScriptFormat>;
 export const CreativeScriptBase = z.object({
   title: z.string().min(1).max(120),
   hook: z.string().min(1).max(300),
+  // Shared look of every image/video of the script (photo style, light, brand colors in hex).
+  // Optional: scripts saved before it existed don't have it.
+  artDirection: z.string().max(1000).optional(),
   blocks: z
     .array(
       z.object({

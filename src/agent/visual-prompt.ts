@@ -4,12 +4,14 @@ type Brand = { segment: string };
 
 // Pure: one block of the script → one image prompt. Conversion rules live here so every image
 // gets them: hook on the first image, one big subject, no text drawn by the model (overlay.tsx
-// adds it), room at the top for that text, real-looking Brazilian people and places.
+// adds it), room at the top for that text, real-looking Brazilian people and places, and the
+// script's art direction on every image so a carousel looks like one piece.
 export function visualPrompt(script: CreativeScript, index: number, brand: Brand) {
   const block = script.blocks[index];
   return [
     `Foto publicitária vertical para Instagram de um(a) ${brand.segment}.`,
     `Cena: ${block.visual}`,
+    script.artDirection && `Direção de arte (a mesma em todas as imagens do post): ${script.artDirection}`,
     index === 0 && `Primeira imagem: precisa parar a rolagem. Ideia central: "${script.hook}".`,
     "Um único assunto principal, grande e nítido, fundo simples, alto contraste.",
     "Pessoas e lugares brasileiros, luz natural, aparência de foto feita com um bom celular.",
@@ -28,7 +30,10 @@ export function videoPrompt(script: CreativeScript, brand: Brand) {
     `Vídeo vertical 9:16 para Reels de um(a) ${brand.segment}, filmado com celular, pessoas brasileiras.`,
     `No primeiro segundo, movimento ou contraste forte que traduza: "${script.hook}".`,
     `Sequência, comprimida em 12 segundos:\n${scenes}`,
+    script.artDirection && `Direção de arte: ${script.artDirection}`,
     "Não mostre preços, promoções, resultados garantidos nem comparações de antes e depois.",
     "Sem texto na tela, sem legendas, sem logotipos.",
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }

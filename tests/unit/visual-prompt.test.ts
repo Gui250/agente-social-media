@@ -26,6 +26,14 @@ describe("visualPrompt", () => {
     expect(prompt).toContain("clínica odontológica");
     expect(prompt.split("\n").at(-1)).toMatch(/^Sem texto/);
   });
+
+  it("repeats the art direction on every image and video, and skips it when missing", () => {
+    const styled = { ...script, artDirection: "luz quente, fundo bege #F2E8DC" };
+    expect(visualPrompt(styled, 0, brand)).toContain("#F2E8DC");
+    expect(visualPrompt(styled, 1, brand)).toContain("#F2E8DC");
+    expect(videoPrompt(styled, brand)).toContain("#F2E8DC");
+    expect(visualPrompt(script, 1, brand)).not.toMatch(/Direção de arte|undefined/);
+  });
 });
 
 describe("videoPrompt", () => {

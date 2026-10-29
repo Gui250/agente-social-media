@@ -10,11 +10,16 @@ Escreva sempre em português do Brasil, com linguagem natural do segmento inform
 Estrutura obrigatória:
 - title: nome curto do criativo.
 - hook: a primeira frase ou cena, feita para prender a atenção nos primeiros 3 segundos.
+- artDirection: a direção de arte comum a todas as cenas/slides, em 2 ou 3 frases: estilo de foto,
+  luz, enquadramento, ambiente e paleta. Se houver identidade visual, cite as cores com o hex.
 - blocks:
   - Formato "video" (Reels): cenas "Cena 1", "Cena 2"... com durationSeconds (total entre 15 e 60 s),
     visual (o que gravar) e text (fala ou texto na tela).
   - Formato "static" (post/carrossel): slides "Slide 1", "Slide 2"... com durationSeconds = null,
     visual (descrição da arte) e text (texto do slide). Carrossel tem de 2 a 10 slides; post único, 1.
+    O text vai escrito por cima da imagem: no máximo 15 palavras. O último slide traz o CTA.
+- visual: uma cena que dá para fotografar ou filmar, com um assunto principal. Nunca descreva textos,
+  letreiros, logos ou layouts na imagem.
 - caption: legenda pronta para publicar, até 2200 caracteres.
 - cta: chamada para ação clara e alinhada ao objetivo.
 - hashtags: de 5 a 15, todas começando com "#", relevantes para o segmento.
@@ -26,6 +31,7 @@ Não invente preços, endereços, promoções ou números que o usuário não in
 const Output = z.object({
   title: z.string(),
   hook: z.string().describe("Gancho de abertura"),
+  artDirection: z.string().describe("Estilo visual comum a todas as cenas/slides"),
   blocks: z.array(
     z.object({
       label: z.string().describe('"Cena 1" ou "Slide 1"'),
