@@ -2,7 +2,7 @@ import "server-only";
 import { connection } from "next/server";
 import type { z } from "zod";
 import { currentUser } from "@/lib/auth";
-import { DomainError } from "@/lib/errors";
+import { DomainError, validate } from "@/lib/errors";
 import type { SessionUser } from "@/models/user";
 
 export type Ctx<B> = { user: SessionUser; body: B; req: Request };
@@ -21,16 +21,7 @@ export function errorResponse(e: unknown) {
 
 async function parseBody(req: Request, schema: z.ZodType | undefined) {
   if (!schema) return undefined;
-  const json = await req.json().catch(() => undefined);
-  const parsed = schema.safeParse(json);
-  if (!parsed.success) {
-    const issue = parsed.error.issues[0];
-    throw new DomainError(
-      "invalid_input",
-      `Dados inválidos${issue?.path.length ? ` em "${issue.path.join(".")}"` : ""}: ${issue?.message}`,
-    );
-  }
-  return parsed.data;
+  return validate(schema, await req.json().catch(() => undefined));
 }
 
 function toResponse(result: unknown, status = 200) {

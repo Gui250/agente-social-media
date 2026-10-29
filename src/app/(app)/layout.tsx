@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogoutButton } from "@/components/auth/logout-button";
 
 const nav = [
+  { href: "/empresas", label: "Empresas" },
   { href: "/chat", label: "Chat" },
   { href: "/roteiros", label: "Roteiros" },
   { href: "/skills", label: "Skills" },

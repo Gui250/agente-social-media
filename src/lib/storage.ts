@@ -7,8 +7,10 @@ import { storageConfig } from "@/lib/env";
 const access = "private";
 const HOUR = 60 * 60 * 1000;
 
-// Type and size are also enforced by Blob itself on the PUT.
-export async function uploadUrl(pathname: string, contentType: string, maxBytes: number) {
+// Type and size are also enforced by Blob itself on the PUT. The CDN keeps an object for
+// `cacheMaxAge` seconds (Blob's default: a month), and deleting it doesn't purge copies already
+// cached, so a signed link fetched before a delete can keep working for that long.
+export async function uploadUrl(pathname: string, contentType: string, maxBytes: number, cacheMaxAge?: number) {
   const { token } = storageConfig();
   const signed = await issueSignedToken({
     token,
@@ -27,6 +29,7 @@ export async function uploadUrl(pathname: string, contentType: string, maxBytes:
     addRandomSuffix: false,
     allowOverwrite: false,
     validUntil: Date.now() + 10 * 60 * 1000,
+    ...(cacheMaxAge && { cacheControlMaxAge: cacheMaxAge }),
   });
   return presignedUrl;
 }
@@ -68,4 +71,15 @@ export async function objectInfo(pathname: string) {
 
 export async function removeObjects(pathnames: string[]) {
   if (pathnames.length) await del(pathnames, { token: storageConfig().token });
+}
+
+// After the rows are gone: a failure leaves objects nothing points to (and that no one can sign a
+// URL for), so it is logged instead of failing a delete that already happened.
+// ponytail: no sweep for these orphans; add one if they ever show up in the store.
+export async function removeOrphans(pathnames: string[]) {
+  try {
+    await removeObjects(pathnames);
+  } catch (e) {
+    console.error("Blob cleanup failed", pathnames, e);
+  }
 }

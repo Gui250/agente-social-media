@@ -15,6 +15,10 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
   const conversation = await import("@/models/conversation");
   const generation = await import("@/models/generation");
   const skill = await import("@/models/skill");
+  const organization = await import("@/models/organization");
+  const brand = await import("@/models/brand");
+  const brandAsset = await import("@/models/brand-asset");
+  const audit = await import("@/models/audit");
 
   let alice: string;
   let bob: string;
@@ -106,5 +110,80 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
     const p = await post.getPost(alice, ids.post);
     expect(p.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
     expect((await media.getMediaForUser([ids.media], alice))[0].size_bytes).toBe(10);
+  });
+
+  it("organizations are only visible to their owner", async () => {
+    const slug = `own-${crypto.randomUUID().slice(0, 8)}`;
+    const org = await organization.insertOrganization({ userId: alice, name: "Clínica", slug });
+    expect(await organization.listOrganizations(alice)).toMatchObject([{ id: org.id, brand_count: 0 }]);
+    expect((await organization.getOrganizationBySlug(alice, slug)).id).toBe(org.id);
+
+    expect(await organization.listOrganizations(bob)).toEqual([]);
+    await notFound(organization.getOrganization(bob, org.id));
+    await notFound(organization.getOrganizationBySlug(bob, slug));
+    await notFound(organization.renameOrganization(bob, org.id, "Outra"));
+    await notFound(organization.deleteOrganization(bob, org.id));
+    expect((await organization.getOrganization(alice, org.id)).name).toBe("Clínica");
+  });
+
+  it("brands are only reachable through their owner's company", async () => {
+    const org = await organization.insertOrganization({ userId: alice, name: "Clínica", slug: `own-${crypto.randomUUID().slice(0, 8)}` });
+    const b = await brand.insertBrand(alice, org.id, { name: "Sorriso Kids" });
+    expect(await brand.listBrands(alice, org.id)).toMatchObject([{ id: b.id }]);
+    expect((await brand.getBrand(alice, b.id)).organization_slug).toBe(org.slug);
+    expect((await organization.getOrganization(alice, org.id)).brand_count).toBe(1);
+
+    expect(await brand.listBrands(bob, org.id)).toEqual([]);
+    await notFound(brand.getBrand(bob, b.id));
+    await notFound(brand.updateBrand(bob, b.id, { name: "Outra" }));
+    await notFound(brand.deleteBrand(bob, b.id));
+    await notFound(brand.insertBrand(bob, org.id, { name: "Intrusa" }));
+    expect((await brand.getBrand(alice, b.id)).name).toBe("Sorriso Kids");
+
+    await expect(brand.insertBrand(alice, org.id, { name: "sorriso KIDS" })).rejects.toMatchObject({ code: "23505" });
+  });
+
+  it("brand files: one logo, owner only, removed with the company", async () => {
+    const org = await organization.insertOrganization({ userId: alice, name: "Clínica", slug: `own-${crypto.randomUUID().slice(0, 8)}` });
+    const b = await brand.insertBrand(alice, org.id, { name: "Kids" });
+    const file = (name: string) => ({
+      brand_id: b.id, asset_type: "logo" as const, storage_key: `${alice}/brands/${b.id}/${name}.png`,
+      mime_type: "image/png" as const, width: 128, height: 128, size_bytes: 100,
+    });
+    const first = await brandAsset.insertAsset(alice, file("a"));
+    await expect(brandAsset.insertAsset(alice, file("b"))).rejects.toMatchObject({ code: "23505" });
+
+    const { asset, oldKey } = await brandAsset.replaceLogo(alice, file("c"));
+    expect(oldKey).toBe(first.storage_key);
+    expect(await brandAsset.listAssets(alice, b.id)).toMatchObject([{ id: asset.id, asset_type: "logo" }]);
+    await brandAsset.insertAsset(alice, { ...file("d"), asset_type: "other" });
+    expect(await brandAsset.countNonLogoAssets(alice, b.id)).toBe(1);
+
+    expect(await brandAsset.listAssets(bob, b.id)).toEqual([]);
+    await notFound(brandAsset.deleteAsset(bob, b.id, asset.id));
+    await notFound(brandAsset.insertAsset(bob, file("e")));
+    await notFound(brandAsset.replaceLogo(bob, file("f")));
+    expect(await brandAsset.listAssets(alice, b.id)).toHaveLength(2);
+
+    await brand.updateBrand(alice, b.id, {
+      color_palette: [{ hex: "#AABBCC", role: "primary" }], typography: [{ family: "Inter", usage: "body" }],
+      visual_guidelines: ["Fundo claro"], forbidden_elements: [],
+    });
+    expect(await brand.getBrand(alice, b.id)).toMatchObject({
+      color_palette: [{ hex: "#AABBCC", role: "primary" }], visual_guidelines: ["Fundo claro"], forbidden_elements: [],
+    });
+
+    const { keys } = await organization.deleteOrganization(alice, org.id);
+    expect(keys.sort()).toEqual([`${alice}/brands/${b.id}/c.png`, `${alice}/brands/${b.id}/d.png`]);
+    expect(await sql`select 1 from brands where organization_id = ${org.id}`).toHaveLength(0);
+    expect(await sql`select 1 from brand_assets where brand_id = ${b.id}`).toHaveLength(0);
+  });
+
+  it("audit entries keep their metadata as JSON", async () => {
+    const entityId = crypto.randomUUID();
+    await audit.recordAudit({ userId: alice, action: "brand.update", entityType: "brand", entityId, metadata: { fields: ["name"] } });
+    expect(await sql`select action, metadata from audit_log where entity_id = ${entityId}`).toEqual([
+      { action: "brand.update", metadata: { fields: ["name"] } },
+    ]);
   });
 });

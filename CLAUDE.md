@@ -62,6 +62,14 @@ All user-facing text is Portuguese.
 - **Visual identity** `extract_visual_identity` → `src/controllers/brand.ts` → `src/agent/brand-reader.ts`
   (vision model, structured output): colors (hex), logo, typography and style of an attached image.
   Not stored; the agent passes a summary in `generate_creative_script.visualIdentity`.
+- **Empresas e marcas** (`specs/002-orgs-brands`, base of the Creative Intelligence Engine):
+  `organizations` (single owner `user_id`, immutable `slug` used in `/empresas/[slug]`), `brands`
+  (brand kit in `color_palette`/`typography` jsonb and `visual_guidelines`/`forbidden_elements`
+  text[]), `brand_assets` (one `logo` per brand, files under `<userId>/brands/<brandId>/`, checked
+  with `sharp` on register: real format, decode, size, 64–8000 px) and `audit_log`. Brand and asset
+  queries authorize by joining up to `organizations.user_id`. Brand kit texts are untrusted data
+  for future prompts, never instructions. Blob objects of deleted rows go through
+  `removeOrphans()` (logged, not thrown).
 - **Services** `src/services/`: `instagram.ts` (Graph API, Instagram Login), `facebook.ts`
   (Facebook Login for Business: one login connects every Instagram account linked to the user's
   Pages) and `publisher.ts` (one idempotent publishing step per call, dependencies injected).
