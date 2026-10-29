@@ -7,10 +7,25 @@ import { MediaUploader, type UploadedMedia } from "@/components/media/media-uplo
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api-client";
+import { apiStream } from "@/lib/api-client";
 import type { Message, MessageMedia } from "@/agent/transcript";
-import type { Approval, ChatResponse, SkillOption } from "@/controllers/chat";
+import type { Approval, ChatProgress, ChatResponse, SkillOption } from "@/controllers/chat";
 import { ApprovalCard } from "./approval-card";
+
+// Shown while the agent runs a tool, instead of "Pensando…".
+const TOOL_STATUS: Record<string, string> = {
+  generate_creative_script: "Escrevendo o roteiro…",
+  load_skill: "Lendo a skill…",
+  extract_visual_identity: "Analisando a identidade visual…",
+  list_creative_scripts: "Consultando os roteiros…",
+  generate_creative_media: "Gerando as artes…",
+  list_generations: "Consultando as mídias…",
+  list_connected_accounts: "Consultando as contas…",
+  list_posts: "Consultando os posts…",
+  schedule_post: "Agendando o post…",
+  publish_post_now: "Publicando…",
+  cancel_post: "Cancelando o post…",
+};
 
 // The page remounts this (key = conversation id) whenever another conversation is opened.
 export function ChatPanel({
@@ -30,6 +45,8 @@ export function ChatPanel({
   const [approvals, setApprovals] = useState<Approval[]>(initialApprovals);
   const [decisions, setDecisions] = useState<Record<string, boolean>>({});
   const [pending, setPending] = useState(false);
+  // The reply as it streams in, or what the agent is doing while no text has arrived yet.
+  const [draft, setDraft] = useState({ text: "", status: "Pensando…" });
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -49,7 +66,21 @@ export function ChatPanel({
   // return a cleanup function.
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, approvals, pending]);
+  }, [messages, approvals, pending, draft]);
+
+  // A tool call starts a new model turn, so text streamed before it was not the final reply.
+  function progress(event: ChatProgress) {
+    setDraft((d) =>
+      event.type === "delta"
+        ? { ...d, text: d.text + event.text }
+        : { text: "", status: TOOL_STATUS[event.name] ?? "Trabalhando…" },
+    );
+  }
+
+  function chat(path: string, body: unknown) {
+    setDraft({ text: "", status: "Pensando…" });
+    return apiStream<ChatResponse, ChatProgress>(path, body, progress);
+  }
 
   function handle(res: ChatResponse) {
     const media = res.status === "done" ? res.media : [];
@@ -74,7 +105,7 @@ export function ChatPanel({
     ]);
     setPending(true);
     try {
-      handle(await api<ChatResponse>("/api/chat", { body: { conversationId, message, mediaIds } }));
+      handle(await chat("/api/chat", { conversationId, message, mediaIds }));
     } catch (err) {
       toast.error((err as Error).message);
       setMessages((m) => m.slice(0, -1));
@@ -92,11 +123,9 @@ export function ChatPanel({
     setPending(true);
     try {
       handle(
-        await api<ChatResponse>("/api/chat/approvals", {
-          body: {
-            conversationId,
-            decisions: approvals.map((a) => ({ id: a.id, approve: next[a.id] })),
-          },
+        await chat("/api/chat/approvals", {
+          conversationId,
+          decisions: approvals.map((a) => ({ id: a.id, approve: next[a.id] })),
         }),
       );
     } catch (err) {
@@ -123,7 +152,8 @@ export function ChatPanel({
         </Button>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto" aria-live="polite">
+      {/* aria-busy: screen readers wait for the whole reply instead of reading every streamed piece. */}
+      <div className="flex flex-1 flex-col gap-3 overflow-y-auto" aria-live="polite" aria-busy={pending}>
         {messages.length === 0 && (
           <p className="text-sm text-muted-foreground">
             Diga o segmento do seu negócio e o formato (vídeo curto ou post estático) para receber
@@ -153,7 +183,17 @@ export function ChatPanel({
             onDecide={(approve) => decide(a.id, approve)}
           />
         ))}
-        {pending && <p className="text-sm text-muted-foreground">Pensando…</p>}
+        {pending &&
+          (draft.text ? (
+            <div className="mr-auto max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap">
+              {draft.text}
+              <span className="ml-0.5 inline-block animate-pulse" aria-hidden>
+                ▍
+              </span>
+            </div>
+          ) : (
+            <p className="animate-pulse text-sm text-muted-foreground">{draft.status}</p>
+          ))}
         <div ref={bottom} />
       </div>
 

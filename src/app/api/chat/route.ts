@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { sendMessage } from "@/controllers/chat";
-import { route } from "@/lib/http";
+import { ndjson, route } from "@/lib/http";
 
 export const POST = route(
-  ({ user, body }) => sendMessage(user.id, body),
+  async ({ user, body }) => ndjson((emit) => sendMessage(user.id, body, emit)),
   {
     body: z.object({
       conversationId: z.uuid().optional(),

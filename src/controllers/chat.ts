@@ -21,6 +21,9 @@ import { getProfile } from "@/models/profile";
 
 export type SkillOption = { name: string; description: string };
 export type Approval = { id: string; tool: string; summary: string };
+// While the agent runs: its reply text as it's written, and the tools it calls.
+export type ChatProgress = { type: "delta"; text: string } | { type: "tool"; name: string };
+type Emit = (event: ChatProgress) => void;
 export type ChatResponse =
   | { conversationId: string; status: "done"; reply: string; media: MessageMedia[] }
   | { conversationId: string; status: "needs_approval"; reply: string; approvals: Approval[] };
@@ -37,6 +40,24 @@ function runOptions(context: AgentContext) {
     groupId: context.conversationId,
     workflowName: "Agente de Social Media",
   };
+}
+
+// Streams the run so the chat can show the reply being typed; the result is the same as run()'s.
+async function runAgent(
+  input: AgentInputItem[] | RunState<unknown, typeof socialMediaAgent>,
+  context: AgentContext,
+  emit?: Emit,
+) {
+  const result = await run(socialMediaAgent, input, { ...runOptions(context), stream: true });
+  for await (const event of result) {
+    if (event.type === "raw_model_stream_event" && event.data.type === "output_text_delta") {
+      emit?.({ type: "delta", text: event.data.delta });
+    } else if (event.type === "run_item_stream_event" && event.name === "tool_called") {
+      emit?.({ type: "tool", name: (event.item.rawItem as { name?: string }).name ?? "" });
+    }
+  }
+  await result.completed; // rejects with the run's error
+  return result;
 }
 
 async function contextFor(userId: string, conversationId?: string) {
@@ -125,6 +146,7 @@ async function withMedia(userId: string, messages: Message[]): Promise<Message[]
 export async function sendMessage(
   userId: string,
   input: { conversationId?: string; message: string; mediaIds?: string[] },
+  emit?: Emit,
 ): Promise<ChatResponse> {
   const { conversation, context } = await contextFor(userId, input.conversationId);
   if (conversation.pending_state) {
@@ -139,13 +161,13 @@ export async function sendMessage(
     ? `${input.message}\n\n[mídias anexadas: ${input.mediaIds.join(", ")}]`
     : input.message;
   const history: AgentInputItem[] = [...conversation.history, user(text)];
-  const result = await run(socialMediaAgent, history, runOptions(context));
-  return finish(context, result);
+  return finish(context, await runAgent(history, context, emit));
 }
 
 export async function approve(
   userId: string,
   input: { conversationId: string; decisions: { id: string; approve: boolean }[] },
+  emit?: Emit,
 ): Promise<ChatResponse> {
   const { conversation, context } = await contextFor(userId, input.conversationId);
   const pending = [...conversation.pending_approval_ids].sort();
@@ -171,8 +193,7 @@ export async function approve(
     else state.reject(interruption, { message: "O usuário recusou." });
   }
 
-  const result = await run(socialMediaAgent, state, runOptions(context));
-  return finish(context, result);
+  return finish(context, await runAgent(state, context, emit));
 }
 
 export { listConversations } from "@/models/conversation";

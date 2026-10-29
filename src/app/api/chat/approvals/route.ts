@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { approve } from "@/controllers/chat";
-import { route } from "@/lib/http";
+import { ndjson, route } from "@/lib/http";
 
 export const POST = route(
-  ({ user, body }) => approve(user.id, body),
+  async ({ user, body }) => ndjson((emit) => approve(user.id, body, emit)),
   {
     body: z.object({
       conversationId: z.uuid(),

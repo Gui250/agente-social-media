@@ -59,6 +59,29 @@ export function route<S extends z.ZodType | undefined = undefined, P = unknown>(
   };
 }
 
+// Streams a long task as NDJSON, one JSON event per line: whatever `work` emits while it runs,
+// then {type:"done", response} or {type:"error", message}. The status is already 200 by then, so
+// failures travel as the error event (same message errorResponse would send).
+export function ndjson<E>(work: (emit: (event: E) => void) => Promise<unknown>) {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      try {
+        send({ type: "done", response: await work(send) });
+      } catch (e) {
+        const { error } = await errorResponse(e).json();
+        send({ type: "error", message: error.message });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(body, {
+    headers: { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache, no-transform" },
+  });
+}
+
 // Same, without a session: login and sign-up.
 export function publicRoute<S extends z.ZodType>(handler: (body: z.infer<S>) => Promise<unknown>, opts: { body: S }) {
   return async (req: Request) => {

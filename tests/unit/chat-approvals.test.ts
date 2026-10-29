@@ -37,7 +37,16 @@ vi.mock("@openai/agents", () => ({
   RunState: { fromString: vi.fn(async () => state) },
   run: vi.fn(async () => {
     calls.push("run");
-    return { interruptions: [], history: [], finalOutput: "Pronto." };
+    return {
+      interruptions: [],
+      history: [],
+      finalOutput: "Pronto.",
+      completed: Promise.resolve(),
+      async *[Symbol.asyncIterator]() {
+        yield { type: "raw_model_stream_event", data: { type: "output_text_delta", delta: "Pro" } };
+        yield { type: "run_item_stream_event", name: "tool_called", item: { rawItem: { name: "schedule_post" } } };
+      },
+    };
   }),
   user: (t: string) => t,
 }));
@@ -87,6 +96,12 @@ describe("chat.approve", () => {
     expect(calls).not.toContain("setSummary:Agendamento de post"); // not before the response
     await Promise.all(afterQueue.splice(0).map((fn) => fn()));
     expect(calls.at(-1)).toBe("setSummary:Agendamento de post");
+  });
+
+  it("emits the reply text and the tools called while the run streams", async () => {
+    const events: unknown[] = [];
+    await approve("u1", { conversationId: "c1", decisions: [{ id: "call-1", approve: true }] }, (e) => events.push(e));
+    expect(events).toEqual([{ type: "delta", text: "Pro" }, { type: "tool", name: "schedule_post" }]);
   });
 
   it("rejects when the user declines", async () => {
