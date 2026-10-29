@@ -6,7 +6,7 @@ import { errorResponse } from "@/lib/http";
 
 const digest = (s: string) => createHash("sha256").update(s).digest();
 
-// Cron routes are called by pg_cron with `Authorization: Bearer <CRON_SECRET>`.
+// Cron routes are called by a scheduler (Vercel Cron, cron-job.org, a Neon function) with `Authorization: Bearer <CRON_SECRET>`.
 // Hashing first gives equal-length buffers, so the comparison is constant-time.
 export function cronRoute(handler: () => Promise<unknown>) {
   return async (req: Request) => {

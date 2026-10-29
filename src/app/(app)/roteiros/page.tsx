@@ -3,7 +3,7 @@ import { GenerateForm } from "@/components/scripts/generate-form";
 import { ScriptCard } from "@/components/scripts/script-card";
 import { ScriptActions } from "@/components/scripts/script-editor";
 import * as scripts from "@/controllers/scripts";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 
 export default function RoteirosPage() {
   return (
@@ -18,7 +18,8 @@ export default function RoteirosPage() {
 }
 
 async function ScriptList() {
-  const rows = await scripts.list(await createClient(), { limit: 50 });
+  const user = await requireUser();
+  const rows = await scripts.list(user.id, { limit: 50 });
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">

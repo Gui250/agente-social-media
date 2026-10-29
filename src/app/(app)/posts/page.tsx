@@ -3,8 +3,7 @@ import { PostForm } from "@/components/posts/post-form";
 import { PostList } from "@/components/posts/post-list";
 import * as accounts from "@/controllers/accounts";
 import * as posts from "@/controllers/posts";
-import { createClient } from "@/lib/supabase/server";
-import { getProfile } from "@/models/profile";
+import { requireUser } from "@/lib/auth";
 
 export default function PostsPage() {
   return (
@@ -18,14 +17,11 @@ export default function PostsPage() {
 }
 
 async function Posts() {
-  const supabase = await createClient();
-  const { data } = await supabase.auth.getUser();
-  const userId = data.user?.id ?? "";
-  const [profile, accountRows] = await Promise.all([
-    getProfile(supabase, userId),
-    accounts.list(supabase),
+  const user = await requireUser();
+  const [accountRows, rows] = await Promise.all([
+    accounts.list(user.id),
+    posts.list(user.id, user.timezone),
   ]);
-  const rows = await posts.list(supabase, profile.timezone);
   const accountOptions = accountRows.map((a) => ({ id: a.id, username: a.username, status: a.status }));
   const username = new Map(accountRows.map((a) => [a.id, a.username]));
 

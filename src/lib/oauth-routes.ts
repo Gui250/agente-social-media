@@ -1,7 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
+import { currentUser } from "@/lib/auth";
 import { DomainError } from "@/lib/errors";
-import { createClient } from "@/lib/supabase/server";
 
 // Browser redirect back from Instagram/Facebook: always answer with a redirect to /contas.
 export function oauthCallback(
@@ -15,15 +15,14 @@ export function oauthCallback(
       return NextResponse.redirect(to);
     };
 
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) return NextResponse.redirect(new URL("/login", url));
+    const user = await currentUser();
+    if (!user) return NextResponse.redirect(new URL("/login", url));
 
     const code = url.searchParams.get("code");
     const state = url.searchParams.get("state");
     if (!code || !state) return back({ erro: "Conexão cancelada." });
     try {
-      const accounts = await connect(data.user.id, code, state);
+      const accounts = await connect(user.id, code, state);
       return back({ conectada: accounts.map((a) => `@${a.username}`).join(", ") });
     } catch (e) {
       if (!(e instanceof DomainError)) console.error(e);
@@ -37,9 +36,8 @@ export function oauthCallback(
 export function oauthStart(start: () => Promise<string>) {
   return async (req: Request) => {
     const url = new URL(req.url);
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) return NextResponse.redirect(new URL("/login", url));
+    const user = await currentUser();
+    if (!user) return NextResponse.redirect(new URL("/login", url));
     try {
       return NextResponse.redirect(await start());
     } catch (e) {

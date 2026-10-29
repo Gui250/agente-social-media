@@ -3,9 +3,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 beforeAll(() => {
   Object.assign(process.env, {
     OPENAI_API_KEY: "x",
-    NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: "x",
-    SUPABASE_SERVICE_ROLE_KEY: "x",
+    DATABASE_URL: "postgres://localhost/test",
     CRON_SECRET: "s".repeat(32),
     FACEBOOK_APP_ID: "fb-app",
     FACEBOOK_APP_SECRET: "fb-secret",

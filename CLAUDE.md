@@ -7,21 +7,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm run dev                                   # Next.js dev server (needs the local Supabase stack)
+npm run dev                                   # Next.js dev server (needs DATABASE_URL)
 npm test                                      # Vitest: unit + integration
 npx vitest run tests/unit/publisher.test.ts   # single test file
 npx tsc --noEmit                              # typecheck
 npx eslint src tests                          # lint
 npx next build                                # production build (catches Cache Components errors)
-npx supabase start                            # local Postgres/Auth/Storage (Docker)
-npx supabase db reset                         # re-apply supabase/migrations (wipes local data)
+npm run db:migrate                            # apply db/migrations/*.sql to DATABASE_URL (once each)
 ```
 
-`tests/integration/claim-due-posts.test.ts` runs against the local Supabase stack using
-`.env.local` and skips itself when the stack is down. Tests never call OpenAI or Instagram.
+`tests/integration/*` run only with `TEST_DATABASE_URL` pointing at a throwaway database with the
+migrations applied (a Neon branch or `docker run -p 54329:5432 -e POSTGRES_PASSWORD=test postgres:18`),
+never production: `claim_due_posts` claims every due post. Tests never call OpenAI or Instagram.
 
-Environment: `OPENAI_API_KEY` lives in `.env`; Supabase keys, Instagram app and `CRON_SECRET` in
-`.env.local` (template: `.env.example`). Instagram variables are optional until US2/US3 are used.
+Environment: `OPENAI_API_KEY` lives in `.env`; `DATABASE_URL` (Neon, pooled), S3 bucket, Instagram
+app and `CRON_SECRET` in `.env.local` (template: `.env.example`). S3 and Instagram variables are
+optional until uploads/publishing are used.
 
 ## What this is
 
@@ -32,11 +33,18 @@ All user-facing text is Portuguese.
 
 ## Architecture (MVC in one Next.js 16 app)
 
-- **Model** `src/models/`: Zod schemas and Supabase queries per entity. `post.ts` owns the post
-  state machine (`assertTransition`); every status change goes through it.
+- **Model** `src/models/`: Zod schemas and SQL (postgres.js, `src/lib/db.ts`) per entity. There is
+  no RLS: every query that takes a `userId` must filter by `user_id` (covered by
+  `tests/integration/ownership.test.ts`). `post.ts` owns the post state machine
+  (`assertTransition`); every status change goes through it.
 - **Controller** `src/controllers/`: use cases (validation, rules). Route handlers in `src/app/api/`
   stay thin and call controllers through `route()` from `src/lib/http.ts` (session, body
-  validation, `DomainError` → JSON error).
+  validation, `DomainError` → JSON error); login/sign-up use `publicRoute()`.
+- **Auth** (own, no provider): `src/lib/auth.ts` hashes passwords with scrypt and keeps sessions in
+  the `sessions` table (cookie = random token, table = its sha256). `currentUser()`/`requireUser()`
+  validate it; `src/proxy.ts` only checks that the cookie exists. Use cases in
+  `src/controllers/auth.ts` (5 wrong passwords lock the account for 15 min; changing the password
+  signs out other sessions).
 - **View** `src/app/**/page.tsx` + `src/components/`. Pages read data through controllers inside a
   `<Suspense>` boundary (Cache Components is on).
 - **Agent** `src/agent/`: `socialMediaAgent` (OpenAI Agents SDK) is just another client of the
@@ -54,9 +62,13 @@ All user-facing text is Portuguese.
   `conversations.pending_state` and resumed only by `chat.approve`, which clears it first.
 - The agent run context is plain data (`src/agent/context.ts`): `RunState.toString()` serializes it
   into the database, so never put clients or tokens in it.
-- Instagram tokens are only in `instagram_tokens` (RLS on, no policies) and only read with the
-  service-role client (`src/lib/supabase/admin.ts`).
-- Publishing is driven by pg_cron → `POST /api/cron/publish` (Bearer `CRON_SECRET`).
+- Instagram tokens are only in `instagram_tokens` and only read in `src/models/account.ts`; they
+  never reach the browser.
+- Media lives in a private S3-compatible bucket (`src/lib/storage.ts`): the browser uploads with a
+  presigned PUT under `<userId>/`, `/api/media` checks and registers it, Instagram gets presigned GETs.
+- Publishing is driven by an external scheduler → `/api/cron/publish` (Bearer `CRON_SECRET`; GET
+  for Vercel Cron, POST otherwise). `vercel.json` only schedules the daily token refresh (Hobby
+  allows daily crons).
   `claim_due_posts()` claims posts atomically; `ig_container_id`/`ig_media_id` are saved as soon as
   they exist so a retry never publishes twice.
 - Next.js 16 specifics: middleware is `src/proxy.ts`; route files must not export `runtime`; API

@@ -1,5 +1,4 @@
 import "server-only";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { formatInTimeZone } from "@/lib/datetime";
 import { DomainError } from "@/lib/errors";
@@ -33,23 +32,23 @@ export type PostInput = z.infer<typeof PostInput>;
 export const PostPatch = PostInput.partial();
 export type PostPatch = z.infer<typeof PostPatch>;
 
-async function validate(supabase: SupabaseClient, userId: string, input: PostInput) {
+async function validate(userId: string, input: PostInput) {
   // The agent passes ids as plain strings; reject malformed ones before they reach Postgres.
   if (!PostInput.safeParse(input).success) {
     throw new DomainError("invalid_post", "Dados do post inválidos: confira a conta e as mídias.");
   }
   const [account, media] = await Promise.all([
-    getAccount(supabase, input.accountId),
-    getMediaForUser(supabase, input.mediaIds, userId),
+    getAccount(userId, input.accountId),
+    getMediaForUser(input.mediaIds, userId),
   ]);
   const { scheduledAt } = validatePostInput(input, { now: new Date(), media, account });
   return { account, scheduledAt };
 }
 
 // No date → draft; with a date → scheduled. Callers confirm with the user first (FR-010).
-export async function create(supabase: SupabaseClient, userId: string, input: PostInput) {
-  const { scheduledAt } = await validate(supabase, userId, input);
-  return insertPost(supabase, {
+export async function create(userId: string, input: PostInput) {
+  const { scheduledAt } = await validate(userId, input);
+  return insertPost({
     user_id: userId,
     account_id: input.accountId,
     script_id: input.scriptId ?? null,
@@ -61,9 +60,9 @@ export async function create(supabase: SupabaseClient, userId: string, input: Po
   });
 }
 
-export async function schedule(supabase: SupabaseClient, userId: string, input: PostInput) {
+export async function schedule(userId: string, input: PostInput) {
   if (!input.scheduledAt) throw new DomainError("invalid_post", "Informe a data e o horário do post.");
-  return create(supabase, userId, input);
+  return create(userId, input);
 }
 
 function toInput(post: PostRow): PostInput {
@@ -77,8 +76,8 @@ function toInput(post: PostRow): PostInput {
   };
 }
 
-export async function update(supabase: SupabaseClient, userId: string, id: string, patch: PostPatch) {
-  const post = await getPost(supabase, id);
+export async function update(userId: string, id: string, patch: PostPatch) {
+  const post = await getPost(userId, id);
   if (!isEditable(post.status)) {
     throw new DomainError("not_editable", "Este post não pode mais ser editado.", 409);
   }
@@ -88,7 +87,7 @@ export async function update(supabase: SupabaseClient, userId: string, id: strin
   }
   // Re-validating an untouched past date would always fail: only check dates the user sends.
   const dateChanged = patch.scheduledAt !== undefined;
-  const { scheduledAt } = await validate(supabase, userId, {
+  const { scheduledAt } = await validate(userId, {
     ...merged,
     scheduledAt: dateChanged ? merged.scheduledAt : null,
   });
@@ -100,7 +99,7 @@ export async function update(supabase: SupabaseClient, userId: string, id: strin
   if (dateChanged && scheduledAt) status = "scheduled";
   if (status !== post.status) assertTransition(post.status, status);
 
-  return updatePost(supabase, id, post.status, {
+  return updatePost(id, post.status, {
     account_id: merged.accountId,
     post_type: merged.postType,
     caption: merged.caption,
@@ -112,34 +111,33 @@ export async function update(supabase: SupabaseClient, userId: string, id: strin
   });
 }
 
-export async function cancel(supabase: SupabaseClient, id: string) {
-  const post = await getPost(supabase, id);
+export async function cancel(userId: string, id: string) {
+  const post = await getPost(userId, id);
   if (post.status !== "scheduled") {
     throw new DomainError("not_cancellable", "Só posts agendados podem ser cancelados.", 409);
   }
   assertTransition(post.status, "cancelled");
-  return updatePost(supabase, id, post.status, { status: "cancelled" });
+  return updatePost(id, post.status, { status: "cancelled" });
 }
 
 // Publishes immediately (after the user confirmed). An existing draft/scheduled/failed post, or a
 // new one from the agent's fields. One publisher step runs now; Reels finish on later cron ticks.
 export async function publishNow(
-  supabase: SupabaseClient,
   userId: string,
   target: { postId: string } | PostInput,
 ) {
   let post: PostRow;
   if ("postId" in target) {
-    post = await getPost(supabase, target.postId);
+    post = await getPost(userId, target.postId);
     if (!post.account_id) {
       throw new DomainError("invalid_post", "Escolha uma conta Instagram para este post.");
     }
-    await validate(supabase, userId, { ...toInput(post), scheduledAt: null });
+    await validate(userId, { ...toInput(post), scheduledAt: null });
   } else {
-    post = await create(supabase, userId, { ...target, scheduledAt: null });
+    post = await create(userId, { ...target, scheduledAt: null });
   }
   assertTransition(post.status, "publishing");
-  post = await updatePost(supabase, post.id, post.status, {
+  post = await updatePost(post.id, post.status, {
     status: "publishing",
     scheduled_at: new Date().toISOString(),
     failure_reason: null,
@@ -155,11 +153,11 @@ export const ListFilters = z.object({
 });
 
 export async function list(
-  supabase: SupabaseClient,
+  userId: string,
   timezone: string,
   filters: z.infer<typeof ListFilters> = {},
 ) {
-  const rows = await listPosts(supabase, filters);
+  const rows = await listPosts(userId, filters);
   return rows.map((p) => ({
     ...p,
     scheduledAtLocal: p.scheduled_at ? formatInTimeZone(p.scheduled_at, timezone) : null,

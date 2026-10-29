@@ -1,64 +1,49 @@
 import "server-only";
-import { admin } from "@/lib/supabase/admin";
+import { downloadUrl } from "@/lib/storage";
 import {
   accountsExpiringBefore,
   getAccessToken,
+  getPublishingAccount,
   saveToken,
   setAccountStatus,
 } from "@/models/account";
-import { getMediaForUser, signedUrl } from "@/models/media";
-import { type PostRow, updatePost } from "@/models/post";
+import { getMediaForUser } from "@/models/media";
+import { claimDuePosts, type PostRow, postsInFlight, updatePost } from "@/models/post";
 import * as instagram from "@/services/instagram";
 import { advance, type PublisherDeps } from "@/services/publisher";
 
 const BATCH = 20;
 const REFRESH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-// Shared by the cron tick and "publicar agora". Uses the service role: there is no user session
-// in cron, and posts are only touched through their own ids.
+// Shared by the cron tick and "publicar agora". There is no user session in cron: posts are
+// only touched through their own ids, and media is looked up for the post's owner.
 export function publisherDeps(): PublisherDeps {
-  const db = admin();
   return {
     now: () => new Date(),
     instagram,
     account: async (accountId) => {
-      const { data, error } = await db
-        .from("connected_accounts")
-        .select("ig_user_id, login_type")
-        .eq("id", accountId)
-        .single();
-      if (error) throw error;
+      const account = await getPublishingAccount(accountId);
       const token = await getAccessToken(accountId);
-      return { igUserId: data.ig_user_id, conn: instagram.connFor(data.login_type, token) };
+      return { igUserId: account.ig_user_id, conn: instagram.connFor(account.login_type, token) };
     },
     mediaUrls: async (post) => {
-      const media = await getMediaForUser(db, post.media_ids, post.user_id);
-      return Promise.all(
-        media.map(async (m) => ({ kind: m.kind, url: await signedUrl(db, m.storage_path, 3600) })),
-      );
+      const media = await getMediaForUser(post.media_ids, post.user_id);
+      return Promise.all(media.map(async (m) => ({ kind: m.kind, url: await downloadUrl(m.storage_path, 3600) })));
     },
-    update: (post, from, patch) => updatePost(db, post.id, from, patch),
+    update: (post, from, patch) => updatePost(post.id, from, patch),
   };
 }
 
 export async function publishTick() {
-  const db = admin();
-  const { data: claimed, error } = await db.rpc("claim_due_posts", { batch: BATCH });
-  if (error) throw error;
-  const { data: inFlight, error: e2 } = await db
-    .from("posts")
-    .select()
-    .eq("status", "publishing")
-    .not("ig_container_id", "is", null)
-    .limit(BATCH);
-  if (e2) throw e2;
+  const claimed = await claimDuePosts(BATCH);
+  const inFlight = await postsInFlight(BATCH);
 
   const posts = new Map<string, PostRow>();
-  for (const p of [...(claimed as PostRow[]), ...(inFlight as PostRow[])]) posts.set(p.id, p);
+  for (const p of [...claimed, ...inFlight]) posts.set(p.id, p);
 
   const deps = publisherDeps();
   const results = await Promise.allSettled([...posts.values()].map((p) => advance(p, deps)));
-  const counts = { claimed: (claimed as PostRow[]).length, published: 0, failed: 0, inProgress: 0, errors: 0 };
+  const counts = { claimed: claimed.length, published: 0, failed: 0, inProgress: 0, errors: 0 };
   for (const r of results) {
     if (r.status === "rejected") {
       counts.errors++;

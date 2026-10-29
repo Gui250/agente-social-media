@@ -1,7 +1,6 @@
 import "server-only";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { sql } from "@/lib/db";
 import { notFound } from "@/lib/errors";
-import { admin } from "@/lib/supabase/admin";
 
 export type AccountStatus = "active" | "expired" | "revoked";
 export type LoginType = "instagram" | "facebook";
@@ -17,29 +16,20 @@ export type AccountRow = {
   token_expires_at: string | null;
 };
 
-// Reads go through the session client (RLS: own rows only).
-export async function listAccounts(supabase: SupabaseClient): Promise<AccountRow[]> {
-  const { data, error } = await supabase
-    .from("connected_accounts")
-    .select()
-    .order("created_at");
-  if (error) throw error;
-  return data;
+export async function listAccounts(userId: string): Promise<AccountRow[]> {
+  return sql()<AccountRow[]>`
+    select * from connected_accounts where user_id = ${userId} order by created_at`;
 }
 
-export async function getAccount(supabase: SupabaseClient, id: string): Promise<AccountRow> {
-  const { data, error } = await supabase
-    .from("connected_accounts")
-    .select()
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw notFound("Conta", "a");
-  return data;
+export async function getAccount(userId: string, id: string): Promise<AccountRow> {
+  const [row] = await sql()<AccountRow[]>`
+    select * from connected_accounts where id = ${id} and user_id = ${userId}`;
+  if (!row) throw notFound("Conta", "a");
+  return row;
 }
 
-// Writes and token access use the service role: tokens never reach the browser (FR-021).
-// Reconnecting the same Instagram account (either login) updates it in place.
+// Tokens never reach the browser (FR-021). Reconnecting the same Instagram account (either
+// login) updates it in place.
 export async function upsertAccountWithToken(input: {
   userId: string;
   igUserId: string;
@@ -49,69 +39,58 @@ export async function upsertAccountWithToken(input: {
   loginType: LoginType;
   fbPageId?: string | null;
 }): Promise<AccountRow> {
-  const { data, error } = await admin()
-    .from("connected_accounts")
-    .upsert(
-      {
-        user_id: input.userId,
-        ig_user_id: input.igUserId,
-        username: input.username,
-        status: "active",
-        login_type: input.loginType,
-        fb_page_id: input.fbPageId ?? null,
-        token_expires_at: input.expiresAt?.toISOString() ?? null,
-      },
-      { onConflict: "user_id,ig_user_id" },
-    )
-    .select()
-    .single();
-  if (error) throw error;
-  await saveToken(data.id, input.accessToken, input.expiresAt);
-  return data;
+  const [row] = await sql()<AccountRow[]>`
+    insert into connected_accounts (user_id, ig_user_id, username, status, login_type, fb_page_id, token_expires_at)
+    values (${input.userId}, ${input.igUserId}, ${input.username}, 'active', ${input.loginType},
+            ${input.fbPageId ?? null}, ${input.expiresAt})
+    on conflict (user_id, ig_user_id) do update set
+      username = excluded.username, status = 'active', login_type = excluded.login_type,
+      fb_page_id = excluded.fb_page_id, token_expires_at = excluded.token_expires_at
+    returning *`;
+  await saveToken(row.id, input.accessToken, input.expiresAt);
+  return row;
 }
 
 export async function saveToken(accountId: string, accessToken: string, expiresAt: Date | null) {
-  const db = admin();
-  const { error } = await db
-    .from("instagram_tokens")
-    .upsert({ account_id: accountId, access_token: accessToken });
-  if (error) throw error;
-  const { error: e2 } = await db
-    .from("connected_accounts")
-    .update({ token_expires_at: expiresAt?.toISOString() ?? null, status: "active" })
-    .eq("id", accountId);
-  if (e2) throw e2;
+  await sql()`
+    insert into instagram_tokens (account_id, access_token) values (${accountId}, ${accessToken})
+    on conflict (account_id) do update set access_token = excluded.access_token`;
+  await sql()`
+    update connected_accounts set token_expires_at = ${expiresAt}, status = 'active' where id = ${accountId}`;
 }
 
+// Server-only callers (publisher, token refresh) that already hold a trusted account id.
 export async function getAccessToken(accountId: string): Promise<string> {
-  const { data, error } = await admin()
-    .from("instagram_tokens")
-    .select("access_token")
-    .eq("account_id", accountId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw notFound("Token da conta");
-  return (data as { access_token: string }).access_token;
+  const [row] = await sql()<{ access_token: string }[]>`
+    select access_token from instagram_tokens where account_id = ${accountId}`;
+  if (!row) throw notFound("Token da conta");
+  return row.access_token;
+}
+
+export async function getPublishingAccount(accountId: string) {
+  const [row] = await sql()<Pick<AccountRow, "ig_user_id" | "login_type">[]>`
+    select ig_user_id, login_type from connected_accounts where id = ${accountId}`;
+  if (!row) throw notFound("Conta", "a");
+  return row;
 }
 
 export async function setAccountStatus(accountId: string, status: AccountStatus) {
-  const { error } = await admin().from("connected_accounts").update({ status }).eq("id", accountId);
-  if (error) throw error;
+  await sql()`update connected_accounts set status = ${status} where id = ${accountId}`;
 }
 
-export async function deleteAccount(accountId: string) {
-  const { error } = await admin().from("connected_accounts").delete().eq("id", accountId);
-  if (error) throw error;
+// Its scheduled posts can no longer go out; deleting the account drops its token (cascade).
+export async function deleteAccount(userId: string, accountId: string) {
+  await sql().begin(async (tx) => {
+    await tx`
+      update posts set status = 'failed', failure_reason = 'conta desconectada'
+      where account_id = ${accountId} and user_id = ${userId} and status = 'scheduled'`;
+    await tx`delete from connected_accounts where id = ${accountId} and user_id = ${userId}`;
+  });
 }
 
 // Only Instagram Login tokens expire and can be refreshed (graph.instagram.com).
 export async function accountsExpiringBefore(date: Date): Promise<AccountRow[]> {
-  const { data, error } = await admin()
-    .from("connected_accounts")
-    .select()
-    .eq("status", "active")
-    .eq("login_type", "instagram")
-    .lte("token_expires_at", date.toISOString());
-  if (error) throw error;
-  return data as AccountRow[];
+  return sql()<AccountRow[]>`
+    select * from connected_accounts
+    where status = 'active' and login_type = 'instagram' and token_expires_at <= ${date}`;
 }

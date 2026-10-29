@@ -1,5 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { sql } from "@/lib/db";
 import { DomainError, notFound } from "@/lib/errors";
 
 export const PostStatus = z.enum([
@@ -71,59 +71,58 @@ export type NewPost = Pick<
   "user_id" | "account_id" | "script_id" | "post_type" | "caption" | "media_ids" | "scheduled_at" | "status"
 >;
 
-export async function insertPost(supabase: SupabaseClient, row: NewPost): Promise<PostRow> {
-  const { data, error } = await supabase.from("posts").insert(row).select().single();
-  if (error) throw error;
-  return data;
+export async function insertPost(row: NewPost): Promise<PostRow> {
+  const [post] = await sql()<PostRow[]>`insert into posts ${sql()(row)} returning *`;
+  return post;
 }
 
 export async function listPosts(
-  supabase: SupabaseClient,
+  userId: string,
   filters: { status?: PostStatus; from?: string; to?: string } = {},
 ): Promise<PostRow[]> {
-  let q = supabase
-    .from("posts")
-    .select()
-    .order("scheduled_at", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: false })
-    .limit(100);
-  if (filters.status) q = q.eq("status", filters.status);
-  if (filters.from) q = q.gte("scheduled_at", filters.from);
-  if (filters.to) q = q.lte("scheduled_at", filters.to);
-  const { data, error } = await q;
-  if (error) throw error;
-  return data;
+  const db = sql();
+  return db<PostRow[]>`
+    select * from posts
+    where user_id = ${userId}
+      ${filters.status ? db`and status = ${filters.status}` : db``}
+      ${filters.from ? db`and scheduled_at >= ${filters.from}` : db``}
+      ${filters.to ? db`and scheduled_at <= ${filters.to}` : db``}
+    order by scheduled_at asc nulls last, created_at desc
+    limit 100`;
 }
 
-export async function getPost(supabase: SupabaseClient, id: string): Promise<PostRow> {
-  const { data, error } = await supabase.from("posts").select().eq("id", id).maybeSingle();
-  if (error) throw error;
-  if (!data) throw notFound("Post");
-  return data;
+export async function getPost(userId: string, id: string): Promise<PostRow> {
+  const [row] = await sql()<PostRow[]>`select * from posts where id = ${id} and user_id = ${userId}`;
+  if (!row) throw notFound("Post");
+  return row;
 }
+
+type PostPatch = Partial<Omit<PostRow, "id" | "user_id" | "created_at" | "updated_at">>;
 
 // Optimistic update: only applies if the post is still in `fromStatus` (409 otherwise), so two
-// concurrent writers (UI, agent, cron) can't both move the same post.
-export async function updatePost(
-  supabase: SupabaseClient,
-  id: string,
-  fromStatus: PostStatus,
-  patch: Partial<Omit<PostRow, "id" | "user_id" | "created_at" | "updated_at">>,
-): Promise<PostRow> {
-  const { data, error } = await supabase
-    .from("posts")
-    .update(patch)
-    .eq("id", id)
-    .eq("status", fromStatus)
-    .select()
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) {
+// concurrent writers (UI, agent, cron) can't both move the same post. The owner check lives in
+// the caller: posts come from getPost (user) or claim_due_posts (cron).
+export async function updatePost(id: string, fromStatus: PostStatus, patch: PostPatch): Promise<PostRow> {
+  const [row] = await sql()<PostRow[]>`
+    update posts set ${sql()(patch)}
+    where id = ${id} and status = ${fromStatus}
+    returning *`;
+  if (!row) {
     throw new DomainError(
       "conflict",
       "O post mudou enquanto você editava. Atualize a página e tente de novo.",
       409,
     );
   }
-  return data;
+  return row;
+}
+
+// Cron only: atomically claims due posts (FR-017) and lists Reels still processing.
+export async function claimDuePosts(batch: number): Promise<PostRow[]> {
+  return sql()<PostRow[]>`select * from claim_due_posts(${batch})`;
+}
+
+export async function postsInFlight(batch: number): Promise<PostRow[]> {
+  return sql()<PostRow[]>`
+    select * from posts where status = 'publishing' and ig_container_id is not null limit ${batch}`;
 }

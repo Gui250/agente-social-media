@@ -1,6 +1,4 @@
 import * as posts from "@/controllers/posts";
 import { route } from "@/lib/http";
 
-export const POST = route<undefined, { id: string }>(({ supabase }, { id }) =>
-  posts.cancel(supabase, id),
-);
+export const POST = route<undefined, { id: string }>(({ user }, { id }) => posts.cancel(user.id, id));

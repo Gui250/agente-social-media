@@ -43,6 +43,3 @@ next-env.d.ts
 # allow the template
 !.env.example
 
-# supabase local
-supabase/.branches
-supabase/.temp

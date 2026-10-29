@@ -1,32 +1,18 @@
-import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Refreshes the Supabase session cookie and sends logged-out visitors to /login.
+const SESSION_COOKIE = "session"; // same as src/lib/auth.ts, kept here so the proxy stays database-free
+
+// Optimistic check only (no database): sends visitors without a session cookie to /login.
+// Pages and API routes validate the session itself through currentUser().
 // Public pages: /privacidade must be reachable without login (Meta links to it).
 const PUBLIC_PATHS = new Set(["/login", "/privacidade"]);
-export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll(toSet) {
-          toSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          toSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-        },
-      },
-    },
-  );
 
-  const { data } = await supabase.auth.getUser();
+export function proxy(request: NextRequest) {
   const isApi = request.nextUrl.pathname.startsWith("/api/");
-  if (!data.user && !isApi && !PUBLIC_PATHS.has(request.nextUrl.pathname)) {
+  if (!request.cookies.has(SESSION_COOKIE) && !isApi && !PUBLIC_PATHS.has(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {

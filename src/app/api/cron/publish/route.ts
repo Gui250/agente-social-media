@@ -1,4 +1,6 @@
 import { publishTick } from "@/controllers/cron";
 import { cronRoute } from "@/lib/cron-auth";
 
-export const POST = cronRoute(publishTick);
+// GET: Vercel Cron. POST: any other scheduler.
+export const GET = cronRoute(publishTick);
+export const POST = GET;

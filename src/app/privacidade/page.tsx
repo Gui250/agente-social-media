@@ -108,8 +108,8 @@ export default function PrivacidadePage() {
               você confirma, para publicá-lo na conta escolhida.
             </li>
             <li>
-              <strong>Supabase</strong>: hospeda o banco de dados, a autenticação e os arquivos de
-              mídia.
+              <strong>Neon</strong>: hospeda o banco de dados (contas de acesso, roteiros, posts) e
+              os arquivos de mídia.
             </li>
             <li>
               <strong>Provedor de hospedagem do site</strong>: executa a aplicação.

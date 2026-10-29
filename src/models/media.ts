@@ -1,7 +1,6 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import "server-only";
+import { sql } from "@/lib/db";
 import { notFound } from "@/lib/errors";
-
-export const MEDIA_BUCKET = "post-media";
 
 export type MediaKind = "image" | "video";
 export type MediaRow = {
@@ -13,38 +12,23 @@ export type MediaRow = {
   size_bytes: number;
 };
 
-export async function insertMedia(
-  supabase: SupabaseClient,
-  row: Omit<MediaRow, "id">,
-): Promise<MediaRow> {
-  const { data, error } = await supabase.from("media").insert(row).select().single();
-  if (error) throw error;
-  return data;
+export async function insertMedia(row: Omit<MediaRow, "id">): Promise<MediaRow> {
+  const [media] = await sql()<MediaRow[]>`
+    insert into media (user_id, storage_path, kind, mime_type, size_bytes)
+    values (${row.user_id}, ${row.storage_path}, ${row.kind}, ${row.mime_type}, ${row.size_bytes})
+    returning *`;
+  return media;
 }
 
 // Returns rows in the order of `ids`; 404 if any id is missing or belongs to someone else.
-export async function getMediaForUser(
-  supabase: SupabaseClient,
-  ids: string[],
-  userId: string,
-): Promise<MediaRow[]> {
+export async function getMediaForUser(ids: string[], userId: string): Promise<MediaRow[]> {
   if (ids.length === 0) return [];
-  const { data, error } = await supabase
-    .from("media")
-    .select()
-    .in("id", ids)
-    .eq("user_id", userId);
-  if (error) throw error;
-  const byId = new Map((data as MediaRow[]).map((m) => [m.id, m]));
+  const rows = await sql()<MediaRow[]>`
+    select * from media where id = any(${ids}::uuid[]) and user_id = ${userId}`;
+  const byId = new Map(rows.map((m) => [m.id, m]));
   return ids.map((id) => {
     const m = byId.get(id);
     if (!m) throw notFound("Mídia", "a");
     return m;
   });
-}
-
-export async function signedUrl(supabase: SupabaseClient, path: string, expiresIn = 3600) {
-  const { data, error } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(path, expiresIn);
-  if (error) throw error;
-  return data.signedUrl;
 }

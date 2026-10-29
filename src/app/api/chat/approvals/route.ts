@@ -3,7 +3,7 @@ import { approve } from "@/controllers/chat";
 import { route } from "@/lib/http";
 
 export const POST = route(
-  ({ supabase, user, body }) => approve(supabase, user.id, body),
+  ({ user, body }) => approve(user.id, body),
   {
     body: z.object({
       conversationId: z.uuid(),

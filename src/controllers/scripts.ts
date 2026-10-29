@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { writeScript } from "@/agent/script-writer";
 import { DomainError } from "@/lib/errors";
@@ -28,7 +27,7 @@ export const GenerateInput = z.object({
 });
 export type GenerateInput = z.input<typeof GenerateInput>;
 
-export async function generate(supabase: SupabaseClient, userId: string, input: GenerateInput) {
+export async function generate(userId: string, input: GenerateInput) {
   const parsed = GenerateInput.safeParse(input);
   if (!parsed.success) {
     throw new DomainError(
@@ -38,14 +37,13 @@ export async function generate(supabase: SupabaseClient, userId: string, input: 
   }
   const req = parsed.data;
   const content = await writeScript(req);
-  return insertScript(supabase, { user_id: userId, ...req, content });
+  return insertScript({ user_id: userId, ...req, content });
 }
 
-export const list = (supabase: SupabaseClient, opts?: { limit?: number; cursor?: string }) =>
-  listScripts(supabase, opts);
+export const list = listScripts;
 
-export async function update(supabase: SupabaseClient, id: string, content: unknown) {
-  const current = await getScript(supabase, id);
+export async function update(userId: string, id: string, content: unknown) {
+  const current = await getScript(userId, id);
   const parsed = creativeScriptFor(current.format).safeParse(content);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -54,7 +52,7 @@ export async function update(supabase: SupabaseClient, id: string, content: unkn
       `Roteiro inválido em "${issue.path.join(".")}": ${issue.message}`,
     );
   }
-  return updateScriptContent(supabase, id, parsed.data);
+  return updateScriptContent(userId, id, parsed.data);
 }
 
 export const remove = deleteScript;

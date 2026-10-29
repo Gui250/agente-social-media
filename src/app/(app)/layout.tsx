@@ -23,7 +23,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {item.label}
             </Link>
           ))}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            <Link href="/senha" className="rounded-md px-3 py-1.5 text-sm whitespace-nowrap hover:bg-muted">
+              Alterar senha
+            </Link>
             <LogoutButton />
           </div>
         </nav>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createClient } from "@/lib/supabase/client";
+import { api } from "@/lib/api-client";
 
 export function LoginForm() {
   const router = useRouter();
@@ -21,18 +21,14 @@ export function LoginForm() {
     const form = new FormData(e.currentTarget);
     const email = String(form.get("email"));
     const password = String(form.get("password"));
-    const supabase = createClient();
-    const { data, error } =
-      mode === "signin"
-        ? await supabase.auth.signInWithPassword({ email, password })
-        : await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } },
-          });
-    setPending(false);
-    if (error) return setError(translate(error.message));
-    if (!data.session) return setError("Conta criada. Confirme seu e-mail para entrar.");
+    try {
+      await api(mode === "signin" ? "/api/auth/login" : "/api/auth/signup", {
+        body: { email, password, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+      });
+    } catch (err) {
+      setPending(false);
+      return setError((err as Error).message);
+    }
     router.replace("/chat");
     router.refresh();
   }
@@ -55,7 +51,8 @@ export function LoginForm() {
               id="password"
               name="password"
               type="password"
-              minLength={6}
+              minLength={mode === "signup" ? 8 : undefined}
+              maxLength={128}
               autoComplete={mode === "signin" ? "current-password" : "new-password"}
               required
             />
@@ -81,9 +78,3 @@ export function LoginForm() {
   );
 }
 
-function translate(message: string) {
-  if (/invalid login credentials/i.test(message)) return "E-mail ou senha incorretos.";
-  if (/already registered/i.test(message)) return "Este e-mail já tem conta. Entre com sua senha.";
-  if (/password/i.test(message)) return "Senha inválida: use pelo menos 6 caracteres.";
-  return "Não foi possível entrar. Tente de novo.";
-}

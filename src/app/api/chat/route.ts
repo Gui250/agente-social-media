@@ -3,7 +3,7 @@ import { sendMessage } from "@/controllers/chat";
 import { route } from "@/lib/http";
 
 export const POST = route(
-  ({ supabase, user, body }) => sendMessage(supabase, user.id, body),
+  ({ user, body }) => sendMessage(user.id, body),
   {
     body: z.object({
       conversationId: z.uuid().optional(),

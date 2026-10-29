@@ -1,6 +1,5 @@
 import "server-only";
 import { type AgentInputItem, RunState, run, user } from "@openai/agents";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { socialMediaAgent } from "@/agent/agent";
 import { summarize } from "@/agent/approval-summary";
 import type { AgentContext } from "@/agent/context";
@@ -33,10 +32,10 @@ function runOptions(context: AgentContext) {
   };
 }
 
-async function contextFor(supabase: SupabaseClient, userId: string, conversationId?: string) {
+async function contextFor(userId: string, conversationId?: string) {
   const [profile, conversation] = await Promise.all([
-    getProfile(supabase, userId),
-    getOrCreateConversation(supabase, userId, conversationId),
+    getProfile(userId),
+    getOrCreateConversation(userId, conversationId),
   ]);
   const context: AgentContext = {
     userId,
@@ -48,7 +47,6 @@ async function contextFor(supabase: SupabaseClient, userId: string, conversation
 
 // A paused run (tool needs approval) is stored server-side; only the call ids reach the client.
 async function finish(
-  supabase: SupabaseClient,
   context: AgentContext,
   result: {
     interruptions?: unknown[];
@@ -60,14 +58,13 @@ async function finish(
   const conversationId = context.conversationId;
   const interruptions = (result.interruptions ?? []) as Interruption[];
   if (interruptions.length > 0) {
-    const accounts = await listAccounts(supabase);
+    const accounts = await listAccounts(context.userId);
     const approvals = interruptions.map((i) => ({
       id: callId(i),
       tool: i.name ?? "",
       summary: summarize(i.name ?? "", i.arguments, { timezone: context.timezone, accounts }),
     }));
     await setPending(
-      supabase,
       conversationId,
       result.state.toString(),
       approvals.map((a) => a.id),
@@ -79,16 +76,15 @@ async function finish(
       approvals,
     };
   }
-  await saveHistory(supabase, conversationId, result.history);
+  await saveHistory(conversationId, result.history);
   return { conversationId, status: "done", reply: String(result.finalOutput ?? "") };
 }
 
 export async function sendMessage(
-  supabase: SupabaseClient,
   userId: string,
   input: { conversationId?: string; message: string; mediaIds?: string[] },
 ): Promise<ChatResponse> {
-  const { conversation, context } = await contextFor(supabase, userId, input.conversationId);
+  const { conversation, context } = await contextFor(userId, input.conversationId);
   if (conversation.pending_state) {
     throw new DomainError(
       "approval_pending",
@@ -102,15 +98,14 @@ export async function sendMessage(
     : input.message;
   const history: AgentInputItem[] = [...conversation.history, user(text)];
   const result = await run(socialMediaAgent, history, runOptions(context));
-  return finish(supabase, context, result);
+  return finish(context, result);
 }
 
 export async function approve(
-  supabase: SupabaseClient,
   userId: string,
   input: { conversationId: string; decisions: { id: string; approve: boolean }[] },
 ): Promise<ChatResponse> {
-  const { conversation, context } = await contextFor(supabase, userId, input.conversationId);
+  const { conversation, context } = await contextFor(userId, input.conversationId);
   const pending = [...conversation.pending_approval_ids].sort();
   const decided = input.decisions.map((d) => d.id).sort();
   if (
@@ -126,7 +121,7 @@ export async function approve(
   }
 
   // Clear first: a second request with the same decisions finds nothing pending (no replay).
-  await clearPending(supabase, conversation.id);
+  await clearPending(conversation.id);
   const state = await RunState.fromString(socialMediaAgent, conversation.pending_state);
   const byId = new Map(input.decisions.map((d) => [d.id, d.approve]));
   for (const interruption of state.getInterruptions()) {
@@ -135,5 +130,5 @@ export async function approve(
   }
 
   const result = await run(socialMediaAgent, state, runOptions(context));
-  return finish(supabase, context, result);
+  return finish(context, result);
 }

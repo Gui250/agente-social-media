@@ -5,7 +5,6 @@ import * as accounts from "@/controllers/accounts";
 import * as posts from "@/controllers/posts";
 import * as scripts from "@/controllers/scripts";
 import { DomainError } from "@/lib/errors";
-import { createClient } from "@/lib/supabase/server";
 import type { AgentContext } from "./context";
 
 type Ctx = RunContext<AgentContext> | undefined;
@@ -36,7 +35,7 @@ export const generateCreativeScript = tool({
     tone: z.string().nullable().describe("Tom de voz"),
   }),
   execute: safe(async (input, ctx) => {
-    const row = await scripts.generate(await createClient(), ctx.userId, input);
+    const row = await scripts.generate(ctx.userId, input);
     return { id: row.id, segment: row.segment, format: row.format, script: row.content };
   }),
 });
@@ -47,8 +46,8 @@ export const listCreativeScripts = tool({
   parameters: z.object({
     limit: z.number().int().min(1).max(20).nullable().describe("Padrão: 5"),
   }),
-  execute: safe(async ({ limit }) => {
-    const rows = await scripts.list(await createClient(), { limit: limit ?? 5 });
+  execute: safe(async ({ limit }, ctx) => {
+    const rows = await scripts.list(ctx.userId, { limit: limit ?? 5 });
     return rows.map((r) => ({
       id: r.id,
       title: r.content.title,
@@ -63,8 +62,8 @@ export const listConnectedAccounts = tool({
   name: "list_connected_accounts",
   description: "Lista as contas Instagram conectadas do usuário (id, username, status).",
   parameters: z.object({}),
-  execute: safe(async () => {
-    const rows = await accounts.list(await createClient());
+  execute: safe(async (_input, ctx) => {
+    const rows = await accounts.list(ctx.userId);
     return rows.map((a) => ({ id: a.id, username: a.username, status: a.status }));
   }),
 });
@@ -80,7 +79,7 @@ export const listPosts = tool({
     to: z.string().nullable().describe("ISO 8601"),
   }),
   execute: safe(async ({ status, from, to }, ctx) => {
-    const rows = await posts.list(await createClient(), ctx.timezone, {
+    const rows = await posts.list(ctx.userId, ctx.timezone, {
       status: status ?? undefined,
       from: from ?? undefined,
       to: to ?? undefined,
@@ -116,7 +115,7 @@ export const schedulePost = tool({
   }),
   needsApproval: true,
   execute: safe(async (input, ctx) => {
-    const post = await posts.schedule(await createClient(), ctx.userId, input);
+    const post = await posts.schedule(ctx.userId, input);
     return { id: post.id, status: post.status, scheduledAt: post.scheduled_at };
   }),
 });
@@ -136,7 +135,6 @@ export const publishPostNow = tool({
   }),
   needsApproval: true,
   execute: safe(async (input, ctx) => {
-    const supabase = await createClient();
     const target = input.postId
       ? { postId: input.postId }
       : {
@@ -146,7 +144,7 @@ export const publishPostNow = tool({
           mediaIds: input.mediaIds ?? [],
           scriptId: input.scriptId,
         };
-    const post = await posts.publishNow(supabase, ctx.userId, target);
+    const post = await posts.publishNow(ctx.userId, target);
     return {
       id: post.id,
       status: post.status,
@@ -161,8 +159,8 @@ export const cancelPost = tool({
   name: "cancel_post",
   description: "Cancela um post agendado (pode ser reagendado depois).",
   parameters: z.object({ postId: z.string() }),
-  execute: safe(async ({ postId }) => {
-    const post = await posts.cancel(await createClient(), postId);
+  execute: safe(async ({ postId }, ctx) => {
+    const post = await posts.cancel(ctx.userId, postId);
     return { id: post.id, status: post.status };
   }),
 });

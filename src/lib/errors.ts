@@ -1,4 +1,4 @@
-export type ErrorStatus = 400 | 401 | 404 | 409 | 502;
+export type ErrorStatus = 400 | 401 | 404 | 409 | 429 | 502;
 
 // `message` is shown to the user, so it is always Portuguese.
 export class DomainError extends Error {

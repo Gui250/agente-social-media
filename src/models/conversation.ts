@@ -1,5 +1,7 @@
+import "server-only";
 import type { AgentInputItem } from "@openai/agents";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { JSONValue } from "postgres";
+import { sql } from "@/lib/db";
 import { notFound } from "@/lib/errors";
 
 export type ConversationRow = {
@@ -10,46 +12,30 @@ export type ConversationRow = {
   pending_approval_ids: string[];
 };
 
-// RLS hides other users' rows, so a foreign id reads as "not found" (404).
-export async function getOrCreateConversation(
-  supabase: SupabaseClient,
-  userId: string,
-  id?: string,
-): Promise<ConversationRow> {
+// Another user's id reads as "not found" (404).
+export async function getOrCreateConversation(userId: string, id?: string): Promise<ConversationRow> {
   if (id) {
-    const { data, error } = await supabase
-      .from("conversations")
-      .select()
-      .eq("id", id)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) throw notFound("Conversa", "a");
-    return data;
+    const [row] = await sql()<ConversationRow[]>`
+      select * from conversations where id = ${id} and user_id = ${userId}`;
+    if (!row) throw notFound("Conversa", "a");
+    return row;
   }
-  const { data, error } = await supabase
-    .from("conversations")
-    .insert({ user_id: userId })
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  const [row] = await sql()<ConversationRow[]>`
+    insert into conversations (user_id) values (${userId}) returning *`;
+  return row;
 }
 
-async function update(supabase: SupabaseClient, id: string, patch: Partial<ConversationRow>) {
-  const { error } = await supabase.from("conversations").update(patch).eq("id", id);
-  if (error) throw error;
+// Callers only pass ids from getOrCreateConversation, which already checked the owner.
+export async function saveHistory(id: string, history: AgentInputItem[]) {
+  await sql()`update conversations set history = ${sql().json(history as unknown as JSONValue)} where id = ${id}`;
 }
 
-export const saveHistory = (supabase: SupabaseClient, id: string, history: AgentInputItem[]) =>
-  update(supabase, id, { history });
+export async function setPending(id: string, state: string, approvalIds: string[]) {
+  await sql()`
+    update conversations set pending_state = ${state}, pending_approval_ids = ${approvalIds}::text[]
+    where id = ${id}`;
+}
 
-export const setPending = (
-  supabase: SupabaseClient,
-  id: string,
-  state: string,
-  approvalIds: string[],
-) => update(supabase, id, { pending_state: state, pending_approval_ids: approvalIds });
-
-export const clearPending = (supabase: SupabaseClient, id: string) =>
-  update(supabase, id, { pending_state: null, pending_approval_ids: [] });
+export async function clearPending(id: string) {
+  await sql()`update conversations set pending_state = null, pending_approval_ids = '{}' where id = ${id}`;
+}

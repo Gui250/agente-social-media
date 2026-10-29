@@ -1,9 +1,7 @@
 import "server-only";
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { DomainError } from "@/lib/errors";
-import { admin } from "@/lib/supabase/admin";
 import { deleteAccount, getAccount, listAccounts, upsertAccountWithToken } from "@/models/account";
 import * as facebook from "@/services/facebook";
 import * as instagram from "@/services/instagram";
@@ -71,14 +69,7 @@ export async function handleFacebookCallback(userId: string, code: string, state
 
 export const list = listAccounts;
 
-// Deleting the account drops its token (cascade); its scheduled posts can no longer go out.
-export async function disconnect(supabase: SupabaseClient, accountId: string) {
-  await getAccount(supabase, accountId); // 404 unless it's the user's
-  const { error } = await admin()
-    .from("posts")
-    .update({ status: "failed", failure_reason: "conta desconectada" })
-    .eq("account_id", accountId)
-    .eq("status", "scheduled");
-  if (error) throw error;
-  await deleteAccount(accountId);
+export async function disconnect(userId: string, accountId: string) {
+  await getAccount(userId, accountId); // 404 unless it's the user's
+  await deleteAccount(userId, accountId);
 }

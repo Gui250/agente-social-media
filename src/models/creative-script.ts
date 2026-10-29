@@ -1,5 +1,6 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { JSONValue } from "postgres";
 import { z } from "zod";
+import { sql } from "@/lib/db";
 import { notFound } from "@/lib/errors";
 
 export const ScriptFormat = z.enum(["video", "static"]);
@@ -60,56 +61,46 @@ export type ScriptRow = {
 
 type NewScript = Omit<ScriptRow, "id" | "created_at" | "updated_at">;
 
-export async function insertScript(supabase: SupabaseClient, row: NewScript): Promise<ScriptRow> {
-  const { data, error } = await supabase.from("creative_scripts").insert(row).select().single();
-  if (error) throw error;
-  return data;
+const json = (content: CreativeScript) => sql().json(content as unknown as JSONValue);
+
+export async function insertScript(row: NewScript): Promise<ScriptRow> {
+  const [script] = await sql()<ScriptRow[]>`
+    insert into creative_scripts (user_id, segment, objective, audience, tone, format, content)
+    values (${row.user_id}, ${row.segment}, ${row.objective}, ${row.audience}, ${row.tone}, ${row.format},
+            ${json(row.content)})
+    returning *`;
+  return script;
 }
 
 // Cursor = created_at of the last item of the previous page.
 export async function listScripts(
-  supabase: SupabaseClient,
+  userId: string,
   { limit = 20, cursor }: { limit?: number; cursor?: string } = {},
 ): Promise<ScriptRow[]> {
-  let q = supabase
-    .from("creative_scripts")
-    .select()
-    .order("created_at", { ascending: false })
-    .limit(limit);
-  if (cursor) q = q.lt("created_at", cursor);
-  const { data, error } = await q;
-  if (error) throw error;
-  return data;
+  return sql()<ScriptRow[]>`
+    select * from creative_scripts
+    where user_id = ${userId} ${cursor ? sql()`and created_at < ${cursor}` : sql()``}
+    order by created_at desc
+    limit ${limit}`;
 }
 
-export async function getScript(supabase: SupabaseClient, id: string): Promise<ScriptRow> {
-  const { data, error } = await supabase.from("creative_scripts").select().eq("id", id).maybeSingle();
-  if (error) throw error;
-  if (!data) throw notFound("Roteiro");
-  return data;
+export async function getScript(userId: string, id: string): Promise<ScriptRow> {
+  const [row] = await sql()<ScriptRow[]>`
+    select * from creative_scripts where id = ${id} and user_id = ${userId}`;
+  if (!row) throw notFound("Roteiro");
+  return row;
 }
 
-export async function updateScriptContent(
-  supabase: SupabaseClient,
-  id: string,
-  content: CreativeScript,
-): Promise<ScriptRow> {
-  const { data, error } = await supabase
-    .from("creative_scripts")
-    .update({ content })
-    .eq("id", id)
-    .select()
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw notFound("Roteiro");
-  return data;
+export async function updateScriptContent(userId: string, id: string, content: CreativeScript): Promise<ScriptRow> {
+  const [row] = await sql()<ScriptRow[]>`
+    update creative_scripts set content = ${json(content)}
+    where id = ${id} and user_id = ${userId}
+    returning *`;
+  if (!row) throw notFound("Roteiro");
+  return row;
 }
 
-export async function deleteScript(supabase: SupabaseClient, id: string) {
-  const { error, count } = await supabase
-    .from("creative_scripts")
-    .delete({ count: "exact" })
-    .eq("id", id);
-  if (error) throw error;
+export async function deleteScript(userId: string, id: string) {
+  const { count } = await sql()`delete from creative_scripts where id = ${id} and user_id = ${userId}`;
   if (!count) throw notFound("Roteiro");
 }

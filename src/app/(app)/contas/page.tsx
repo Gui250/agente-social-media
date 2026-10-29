@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { AccountList } from "@/components/accounts/account-list";
 import { buttonVariants } from "@/components/ui/button";
 import * as accounts from "@/controllers/accounts";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
 
 export default function ContasPage({ searchParams }: PageProps<"/contas">) {
   return (
@@ -22,7 +22,8 @@ export default function ContasPage({ searchParams }: PageProps<"/contas">) {
 
 async function Accounts({ searchParams }: { searchParams: PageProps<"/contas">["searchParams"] }) {
   const { erro, conectada } = await searchParams;
-  const rows = await accounts.list(await createClient());
+  const user = await requireUser();
+  const rows = await accounts.list(user.id);
   return (
     <>
       {typeof erro === "string" && (

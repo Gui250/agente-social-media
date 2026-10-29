@@ -5,9 +5,14 @@ import { DomainError } from "@/lib/errors";
 const schema = z.object({
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_MODEL: z.string().optional().transform((v) => v || undefined),
-  NEXT_PUBLIC_SUPABASE_URL: z.url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  DATABASE_URL: z.url(),
+  // S3-compatible bucket for post media (Neon Object Storage, R2, S3). Optional so scripts and
+  // chat work before it exists; see storageConfig().
+  S3_ENDPOINT: z.string().optional(),
+  S3_REGION: z.string().optional(),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY_ID: z.string().optional(),
+  S3_SECRET_ACCESS_KEY: z.string().optional(),
   // Optional so script generation (US1) works before a Meta app exists; see instagramConfig().
   INSTAGRAM_APP_ID: z.string().optional(),
   INSTAGRAM_APP_SECRET: z.string().optional(),
@@ -65,4 +70,22 @@ export function facebookConfig() {
     );
   }
   return { appId, appSecret, configId, redirectUri };
+}
+
+export function storageConfig() {
+  const {
+    S3_ENDPOINT: endpoint,
+    S3_REGION: region,
+    S3_BUCKET: bucket,
+    S3_ACCESS_KEY_ID: accessKeyId,
+    S3_SECRET_ACCESS_KEY: secretAccessKey,
+  } = env();
+  if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) {
+    throw new DomainError(
+      "storage_not_configured",
+      "O envio de mídias ainda não foi configurado neste servidor.",
+      502,
+    );
+  }
+  return { endpoint, region: region || "auto", bucket, accessKeyId, secretAccessKey };
 }
