@@ -54,7 +54,9 @@ All user-facing text is Portuguese.
   loaded by `src/agent/skills.ts`. The instructions list only names and descriptions; the agent
   reads a body with `load_skill` or passes names in `generate_creative_script.skills`, which hands
   the bodies to the script writer. Add a skill by adding a folder; `next.config.ts` traces it into
-  the chat routes.
+  the chat routes. Users also import their own (a SKILL.md upload on `/skills`, table
+  `user_skills`, `src/controllers/skills.ts`): pass `userId` to `listSkills`/`getSkills` so they
+  are included; an import can't reuse a built-in name.
   Typing `/` in the chat opens a menu of skills (`chat.skillOptions()`); the instructions tell the
   agent that `/name` in a message means that skill was chosen.
 - **Visual identity** `extract_visual_identity` → `src/controllers/brand.ts` → `src/agent/brand-reader.ts`

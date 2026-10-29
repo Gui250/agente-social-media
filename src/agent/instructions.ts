@@ -4,8 +4,8 @@ import type { AgentContext } from "./context";
 import { listSkills } from "./skills";
 
 export async function instructions(runContext: RunContext<AgentContext>) {
-  const { timezone } = runContext.context;
-  const skills = (await listSkills()).map((s) => `- ${s.name}: ${s.description}`).join("\n");
+  const { timezone, userId } = runContext.context;
+  const skills = (await listSkills(userId)).map((s) => `- ${s.name}: ${s.description}`).join("\n");
   return `Você é o Agente de Social Media: ajuda pequenos negócios a criar roteiros de criativo,
 agendar e publicar posts no Instagram. Responda sempre em português do Brasil, de forma curta e clara,
 em texto simples: sem Markdown (nada de **, ## ou tabelas); use quebras de linha e listas com "-".

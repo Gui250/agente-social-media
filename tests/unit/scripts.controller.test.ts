@@ -5,6 +5,7 @@ const writeScript = vi.fn();
 const insertScript = vi.fn();
 
 vi.mock("@/agent/script-writer", () => ({ writeScript }));
+vi.mock("@/models/skill", () => ({ listUserSkills: async () => [] }));
 vi.mock("@/models/creative-script", async (orig) => ({
   ...(await orig<typeof import("@/models/creative-script")>()),
   insertScript,

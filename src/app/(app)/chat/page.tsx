@@ -75,7 +75,8 @@ async function History({ searchParams }: { searchParams: Search }) {
 }
 
 async function Conversation({ searchParams }: { searchParams: Search }) {
-  const [user, id, skills] = await Promise.all([requireUser(), selectedId(searchParams), chat.skillOptions()]);
+  const [user, id] = await Promise.all([requireUser(), selectedId(searchParams)]);
+  const skills = await chat.skillOptions(user.id);
   if (!id) return <ChatPanel key="new" skills={skills} />;
   const opened = await chat.openConversation(user.id, id).catch((err) => {
     if (err instanceof DomainError && err.status === 404) notFound();

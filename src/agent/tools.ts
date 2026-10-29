@@ -56,7 +56,7 @@ export const loadSkill = tool({
   description:
     "Lê as diretrizes completas de uma skill (lista de skills nas suas instruções) para usar ao orientar o usuário.",
   parameters: z.object({ name: z.string() }),
-  execute: safe(async ({ name }) => (await getSkills([name]))[0].body),
+  execute: safe(async ({ name }, ctx) => (await getSkills([name], ctx.userId))[0].body),
 });
 
 export const extractVisualIdentity = tool({

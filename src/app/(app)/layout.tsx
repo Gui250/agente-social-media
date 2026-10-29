@@ -4,6 +4,7 @@ import { LogoutButton } from "@/components/auth/logout-button";
 const nav = [
   { href: "/chat", label: "Chat" },
   { href: "/roteiros", label: "Roteiros" },
+  { href: "/skills", label: "Skills" },
   { href: "/posts", label: "Posts" },
   { href: "/contas", label: "Contas" },
 ] as const;

@@ -14,6 +14,7 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
   const account = await import("@/models/account");
   const conversation = await import("@/models/conversation");
   const generation = await import("@/models/generation");
+  const skill = await import("@/models/skill");
 
   let alice: string;
   let bob: string;
@@ -44,6 +45,7 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
     await generation.insertGeneration({ user_id: alice, script_id: ids.script, kind: "image", prompt: "p" });
     ids.conversation = (await conversation.getOrCreateConversation(alice)).id;
     await conversation.saveHistory(ids.conversation, [{ role: "user", content: "Oi" }]);
+    ids.skill = (await skill.upsertUserSkill({ user_id: alice, name: "promo", description: "d", body: "b" })).id;
   });
 
   afterAll(async () => {
@@ -60,6 +62,7 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
     expect(await account.listAccounts(alice)).toHaveLength(1);
     expect(await media.getMediaForUser([ids.media], alice)).toHaveLength(1);
     expect(await generation.listGenerations(alice, { scriptId: ids.script })).toHaveLength(1);
+    expect(await skill.listUserSkills(alice)).toMatchObject([{ id: ids.skill, name: "promo" }]);
     expect(await conversation.listConversations(alice)).toMatchObject([{ id: ids.conversation, title: "Oi" }]);
   });
 
@@ -76,6 +79,8 @@ describe.skipIf(!url)("models only return the caller's rows", async () => {
     expect(await account.listAccounts(bob)).toEqual([]);
     expect(await conversation.listConversations(bob)).toEqual([]);
     expect(await generation.listGenerations(bob)).toEqual([]);
+    expect(await skill.listUserSkills(bob)).toEqual([]);
+    await notFound(skill.deleteUserSkill(bob, ids.skill));
   });
 
   it("another user can't delete the account", async () => {

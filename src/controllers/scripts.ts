@@ -39,7 +39,7 @@ export async function generate(userId: string, input: GenerateInput) {
     );
   }
   const { skills, visualIdentity, ...req } = parsed.data;
-  const guidelines = skills?.length ? (await getSkills(skills)).map((s) => s.body).join("\n\n") : null;
+  const guidelines = skills?.length ? (await getSkills(skills, userId)).map((s) => s.body).join("\n\n") : null;
   const content = await writeScript({ ...req, guidelines, visualIdentity });
   return insertScript({ user_id: userId, ...req, content });
 }

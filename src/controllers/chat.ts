@@ -178,8 +178,8 @@ export async function approve(
 export { listConversations } from "@/models/conversation";
 
 // For the "/" menu in the chat: names and descriptions only, the bodies stay on the server.
-export async function skillOptions(): Promise<SkillOption[]> {
-  return (await listSkills()).map(({ name, description }) => ({ name, description }));
+export async function skillOptions(userId: string): Promise<SkillOption[]> {
+  return (await listSkills(userId)).map(({ name, description }) => ({ name, description }));
 }
 
 // Reopening a conversation: a paused run keeps its newest messages in pending_state, not in
