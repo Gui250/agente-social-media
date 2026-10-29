@@ -121,3 +121,24 @@ describe("approval summary with an active brand", () => {
     expect(res.approvals[0].summary).toContain("para a marca Sorriso Kids");
   });
 });
+
+describe("run deadline", () => {
+  it("answers with a clear error before the platform kills the request", async () => {
+    vi.useFakeTimers();
+    try {
+      const { run } = await import("@openai/agents");
+      let signal: AbortSignal | undefined;
+      vi.mocked(run).mockImplementationOnce(async (_agent, _input, opts) => {
+        signal = (opts as { signal?: AbortSignal }).signal;
+        return new Promise(() => {}) as never; // a step that never answers
+      });
+      const reply = sendMessage("u1", { conversationId: "c1", message: "oi" });
+      const outcome = expect(reply).rejects.toMatchObject({ code: "timeout", message: expect.stringContaining("demorou demais") });
+      await vi.advanceTimersByTimeAsync(270_000);
+      await outcome;
+      expect(signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

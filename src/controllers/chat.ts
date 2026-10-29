@@ -31,6 +31,8 @@ export type ChatResponse =
   | { conversationId: string; status: "needs_approval"; reply: string; approvals: Approval[] };
 
 const MAX_TURNS = 10;
+// Vercel kills the function at 300 s with no answer to the browser; stop first and say so.
+const RUN_DEADLINE_MS = 270_000;
 
 type Interruption = { rawItem: { callId?: string }; name?: string; arguments?: string };
 const callId = (i: Interruption) => i.rawItem.callId ?? "";
@@ -45,21 +47,60 @@ function runOptions(context: AgentContext) {
 }
 
 // Streams the run so the chat can show the reply being typed; the result is the same as run()'s.
+// Logs when each tool starts and ends (seconds since the run began), so a slow step shows up in
+// the Vercel logs.
 async function runAgent(
   input: AgentInputItem[] | RunState<unknown, typeof socialMediaAgent>,
   context: AgentContext,
   emit?: Emit,
 ) {
-  const result = await run(socialMediaAgent, input, { ...runOptions(context), stream: true });
-  for await (const event of result) {
-    if (event.type === "raw_model_stream_event" && event.data.type === "output_text_delta") {
-      emit?.({ type: "delta", text: event.data.delta });
-    } else if (event.type === "run_item_stream_event" && event.name === "tool_called") {
-      emit?.({ type: "tool", name: (event.item.rawItem as { name?: string }).name ?? "" });
+  const started = Date.now();
+  const log = (step: string) =>
+    console.log(`chat run ${context.conversationId}: ${step} at ${((Date.now() - started) / 1000).toFixed(1)}s`);
+  const controller = new AbortController();
+  const consume = (async () => {
+    const result = await run(socialMediaAgent, input, {
+      ...runOptions(context),
+      stream: true,
+      signal: controller.signal,
+    });
+    for await (const event of result) {
+      if (event.type === "raw_model_stream_event" && event.data.type === "output_text_delta") {
+        emit?.({ type: "delta", text: event.data.delta });
+      } else if (event.type === "run_item_stream_event" && event.name === "tool_called") {
+        const name = (event.item.rawItem as { name?: string }).name ?? "";
+        log(`tool ${name}`);
+        emit?.({ type: "tool", name });
+      } else if (event.type === "run_item_stream_event" && event.name === "tool_output") {
+        log("tool done");
+      }
     }
+    await result.completed; // rejects with the run's error
+    log("done");
+    return result;
+  })();
+  // A tool that is still awaiting (e.g. the script writer) may not notice the abort, so the
+  // deadline answers on its own and the late run is left to fail quietly.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      log("deadline");
+      controller.abort();
+      consume.catch(() => {});
+      reject(
+        new DomainError(
+          "timeout",
+          "A resposta demorou demais e foi interrompida. Tente de novo; se pediu roteiro e arte juntos, peça um de cada vez.",
+          502,
+        ),
+      );
+    }, RUN_DEADLINE_MS);
+  });
+  try {
+    return await Promise.race([consume, deadline]);
+  } finally {
+    clearTimeout(timer);
   }
-  await result.completed; // rejects with the run's error
-  return result;
 }
 
 async function contextFor(userId: string, conversationId?: string) {

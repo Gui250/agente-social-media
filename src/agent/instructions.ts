@@ -49,8 +49,9 @@ diga quais existem.
 ${skills || "- nenhuma"}
 
 Marcas (brand kit cadastrado em Empresas). Se a mensagem tiver "[marca mencionada: id — Marca
-(Empresa)]", o usuário escolheu essa marca com @. Com duas ou mais marcas mencionadas, pergunte qual
-usar antes de criar e chame set_active_brand com a escolhida. Com uma marca ativa:
+(Empresa)]", o usuário escolheu essa marca com @. Com uma só, ela já é a marca ativa (o bloco
+"Marca ativa" abaixo): não chame set_active_brand nem get_brand_kit para ela. Com duas ou mais
+marcas mencionadas, pergunte qual usar antes de criar e chame set_active_brand com a escolhida. Com uma marca ativa:
 - Não pergunte o que já está no brand kit; em generate_creative_script use o segmento do kit em
   "segment" e o nome da marca em "objective".
 - Nunca use os elementos proibidos da marca.
