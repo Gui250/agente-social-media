@@ -32,6 +32,7 @@ vi.mock("@/services/overlay", () => ({
   withText,
   withLogo: async (bytes: Uint8Array, logo: Uint8Array) => new Uint8Array([...bytes, ...logo]),
   fitTo: async (bytes: Uint8Array) => bytes,
+  chromeSide: (layout: { position: string }) => (layout.position === "bottom" ? "top" : "bottom"),
 }));
 
 const activeKit = vi.fn(async (): Promise<object | null> => null);
@@ -112,7 +113,9 @@ describe("creatives.generate", () => {
 
     await generate("u1", { scriptId: "s1", styleMediaIds: ["estilo"], logoMediaId: "logo" });
 
-    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", { layout, color: null });
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", { layout, color: null, page: { index: 0, total: 2 }, cta: null });
+    // The CTA button only goes on the last slide.
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "bb", expect.objectContaining({ page: { index: 1, total: 2 }, cta: "cta" }));
     expect(gen.generateImage.mock.calls[0][0]).toContain("terço inferior com área limpa");
   });
 

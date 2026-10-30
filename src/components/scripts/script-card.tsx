@@ -40,7 +40,7 @@ export function ScriptCard({
                 {b.label}
                 {b.durationSeconds !== null && `, ${b.durationSeconds}s`}
               </span>
-              <p className="line-clamp-4 leading-snug font-semibold">{b.text}</p>
+              <p className="line-clamp-4 leading-snug font-semibold whitespace-pre-line">{b.text}</p>
               <p className="mt-auto line-clamp-3 text-xs leading-snug text-muted-foreground" title={b.visual}>
                 {b.visual}
               </p>

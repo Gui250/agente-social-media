@@ -75,6 +75,7 @@ export function visualPrompt(script: CreativeScript, index: number, brand: Brand
       "Use o tipo de imagem da direção de arte (foto, produto em estúdio, 3D, ilustração). Se ela não definir, faça uma foto real feita no momento, num lugar brasileiro, com texturas reais.",
     "Nada de banco de imagens: sem pessoas posando e sorrindo para a câmera, sem pele de plástico, sem gradientes genéricos.",
     ROOM[layout.position],
+    "Nada importante encostado nas bordas: o logo e a paginação ficam ali.",
     flat,
     "Não mostre preços, promoções, resultados garantidos, antes e depois nem paciente ou resultado de tratamento.",
     forbiddenLine(brand),

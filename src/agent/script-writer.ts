@@ -30,11 +30,15 @@ Estrutura obrigatória:
     visual (o que gravar) e text (fala ou texto na tela).
   - Formato "static" (post/carrossel): slides "Slide 1", "Slide 2"... com durationSeconds = null,
     visual (descrição da arte) e text (texto do slide). Carrossel tem de 2 a 10 slides; post único, 1.
-    O text vai escrito por cima da imagem: no máximo 15 palavras. O último slide traz o CTA.
+    O text vai diagramado por cima da imagem: na primeira linha, o título (até 10 palavras); se
+    precisar, uma quebra de linha e uma linha de apoio menor (até 15 palavras). Marque entre
+    asteriscos as 1 a 3 palavras mais fortes do título (ex.: "Seu sorriso *chega antes*"): o sistema
+    destaca na cor da marca. O último slide fecha a ideia sem repetir o CTA, que o sistema desenha
+    como botão logo abaixo.
 - visual: uma cena que dá para fotografar ou filmar, com um assunto principal. Nunca descreva textos,
   letreiros, logos ou layouts na imagem.
 - caption: legenda pronta para publicar, até 2200 caracteres.
-- cta: chamada para ação clara e alinhada ao objetivo.
+- cta: chamada para ação clara e alinhada ao objetivo, em até 6 palavras (vira o botão do último slide).
 - hashtags: de 5 a 15, todas começando com "#", relevantes para o segmento.
 
 Não invente preços, endereços, promoções ou números que o usuário não informou.

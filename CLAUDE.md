@@ -97,8 +97,10 @@ All user-facing text is Portuguese.
   Pages) and `publisher.ts` (one idempotent publishing step per call, dependencies injected).
   Each account has a `login_type`; `connFor()` picks `graph.instagram.com` or
   `graph.facebook.com/v26.0` for publishing. `creative-gen.ts` (OpenAI images/Sora, same API key)
-  and `overlay.tsx` (slide text drawn with `next/og` + `sharp` and `assets/fonts/`, never by the
-  image model) back `src/controllers/creatives.ts`. Each slide is scored by `src/agent/art-critic.ts` (vision
+  and `overlay.tsx` (slide design drawn with `next/og` + `sharp` and `assets/fonts/`, never by the
+  image model: first line of the slide text is the headline, the rest a smaller support line,
+  `*words*` get a highlight in the brand color, carousels get a page bar, the last slide the `cta`
+  as a button; the logo sits at the end of that chrome row, on the side opposite the text) back `src/controllers/creatives.ts`. Each slide is scored by `src/agent/art-critic.ts` (vision
   rubric, `MIN_SCORE`); a rejected one is redone once with the critic's fixes.
 
 ## Rules that are easy to break

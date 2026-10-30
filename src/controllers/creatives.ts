@@ -11,7 +11,7 @@ import { type CreativeScript, getScript } from "@/models/creative-script";
 import { finishGeneration, insertGeneration, listGenerations, runningVideos } from "@/models/generation";
 import { getMediaForUser, insertMedia } from "@/models/media";
 import * as gen from "@/services/creative-gen";
-import { withLogo, withText } from "@/services/overlay";
+import { chromeSide, withLogo, withText } from "@/services/overlay";
 
 const VIDEO_TIMEOUT_MS = 60 * 60 * 1000;
 const BATCH = 10;
@@ -89,6 +89,8 @@ async function slideImage(
     bytes: await withText(await gen.generateImage(prompt, images), script.blocks[index].text, {
       layout: inputs.layout,
       color: brand.color,
+      page: { index, total: script.blocks.length },
+      cta: index === script.blocks.length - 1 ? script.cta : null,
     }),
   });
   const first = await make(
@@ -171,8 +173,7 @@ export async function generate(
     ? await referenceImage(userId, logoMediaId)
     : kit && (await logoBytes(userId, kit.id));
   if (logo) {
-    const corner = layout.position === "bottom" ? "top" : "bottom"; // never on top of the text
-    for (const image of images) image.bytes = await withLogo(image.bytes, logo, corner);
+    for (const image of images) image.bytes = await withLogo(image.bytes, logo, chromeSide(layout));
   }
   const mediaIds: string[] = [];
   for (const { prompt, bytes } of images) {
