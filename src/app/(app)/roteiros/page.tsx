@@ -4,13 +4,14 @@ import { ScriptCard } from "@/components/scripts/script-card";
 import { ScriptActions } from "@/components/scripts/script-editor";
 import * as scripts from "@/controllers/scripts";
 import { requireUser } from "@/lib/auth";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export default function RoteirosPage() {
   return (
     <div className="grid gap-4">
-      <h1 className="text-lg font-semibold">Roteiros</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Roteiros</h1>
       <GenerateForm />
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando roteiros…</p>}>
+      <Suspense fallback={<ListSkeleton label="Carregando roteiros…" />}>
         <ScriptList />
       </Suspense>
     </div>

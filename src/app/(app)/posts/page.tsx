@@ -4,12 +4,13 @@ import { PostList } from "@/components/posts/post-list";
 import * as accounts from "@/controllers/accounts";
 import * as posts from "@/controllers/posts";
 import { requireUser } from "@/lib/auth";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export default function PostsPage() {
   return (
     <div className="grid gap-4">
-      <h1 className="text-lg font-semibold">Posts</h1>
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando posts…</p>}>
+      <h1 className="text-2xl font-semibold tracking-tight">Posts</h1>
+      <Suspense fallback={<ListSkeleton label="Carregando posts…" />}>
         <Posts />
       </Suspense>
     </div>

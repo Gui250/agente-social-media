@@ -6,6 +6,7 @@ import * as brands from "@/controllers/brands";
 import * as organizations from "@/controllers/organizations";
 import { requireUser } from "@/lib/auth";
 import { orNotFound } from "../or-not-found";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type Params = Promise<{ slug: string }>;
 
@@ -15,7 +16,7 @@ export default function OrganizationPage({ params }: { params: Params }) {
       <Link href="/empresas" className="text-sm text-muted-foreground hover:underline">
         ← Empresas
       </Link>
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando empresa…</p>}>
+      <Suspense fallback={<ListSkeleton label="Carregando empresa…" />}>
         <Organization params={params} />
       </Suspense>
     </div>

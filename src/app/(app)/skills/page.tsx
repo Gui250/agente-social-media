@@ -3,6 +3,7 @@ import { ImportedSkillList, SkillImport } from "@/components/skills/skill-list";
 import { builtinSkills } from "@/agent/skills";
 import * as skills from "@/controllers/skills";
 import { requireUser } from "@/lib/auth";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 const EXAMPLE = `---
 name: promocao-relampago
@@ -15,7 +16,7 @@ description: Posts de oferta com prazo curto. Use quando o usuário anunciar uma
 export default function SkillsPage() {
   return (
     <div className="grid gap-4">
-      <h1 className="text-lg font-semibold">Skills</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Skills</h1>
       <p className="text-sm text-muted-foreground">
         Skills são diretrizes de criação que o agente aplica nos roteiros. Use no chat digitando / e
         o nome. Importe as suas com um arquivo SKILL.md: ficam só na sua conta, e importar de novo
@@ -30,7 +31,7 @@ export default function SkillsPage() {
         </p>
       </details>
       <SkillImport />
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando skills…</p>}>
+      <Suspense fallback={<ListSkeleton label="Carregando skills…" />}>
         <Skills />
       </Suspense>
     </div>

@@ -79,7 +79,7 @@ export function OrganizationHeader({
       ) : (
         <>
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold">{organization.name}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{organization.name}</h1>
             <p className="text-xs text-muted-foreground">{organization.slug}</p>
           </div>
           <div className="ml-auto flex gap-2">

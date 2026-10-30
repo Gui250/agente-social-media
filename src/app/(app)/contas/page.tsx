@@ -3,17 +3,18 @@ import { AccountList } from "@/components/accounts/account-list";
 import { buttonVariants } from "@/components/ui/button";
 import * as accounts from "@/controllers/accounts";
 import { requireUser } from "@/lib/auth";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 export default function ContasPage({ searchParams }: PageProps<"/contas">) {
   return (
     <div className="grid gap-4">
-      <h1 className="text-lg font-semibold">Contas</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Contas</h1>
       <p className="text-sm text-muted-foreground">
         A v1 publica apenas no Instagram, em contas profissionais (Business ou Creator). Você pode
         conectar quantas contas quiser e escolher em qual publicar cada post. Com o Facebook, todas
         as contas Instagram vinculadas às suas Páginas são conectadas de uma vez.
       </p>
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando contas…</p>}>
+      <Suspense fallback={<ListSkeleton label="Carregando contas…" />}>
         <Accounts searchParams={searchParams} />
       </Suspense>
     </div>

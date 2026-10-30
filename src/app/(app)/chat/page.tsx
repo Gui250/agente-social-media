@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/auth";
 import { formatInTimeZone } from "@/lib/datetime";
 import { DomainError } from "@/lib/errors";
 import { cn } from "@/lib/utils";
+import { ListSkeleton } from "@/components/ui/skeleton";
 
 type Search = Promise<{ c?: string | string[] }>;
 
@@ -23,7 +24,7 @@ async function selectedId(searchParams: Search) {
 export default function ChatPage({ searchParams }: { searchParams: Search }) {
   return (
     <div className="grid flex-1 gap-4 md:grid-cols-[14rem_1fr]">
-      <Suspense fallback={<p className="text-sm text-muted-foreground">Carregando conversas…</p>}>
+      <Suspense fallback={<ListSkeleton label="Carregando conversas…" />}>
         <History searchParams={searchParams} />
       </Suspense>
       <Suspense>

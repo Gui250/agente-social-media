@@ -1,5 +1,6 @@
 "use client";
 
+import { SendHorizontal } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +14,13 @@ import { type BrandOption, filterBrands, insertMention, mentionQuery, mentionedI
 import type { Message, MessageMedia } from "@/agent/transcript";
 import type { Approval, ChatProgress, ChatResponse, SkillOption } from "@/controllers/chat";
 import { ApprovalCard } from "./approval-card";
+
+// Clicking one fills the message box, so a new user sees what to ask for.
+const EXAMPLES = [
+  "Carrossel para uma padaria de bairro sobre o pão de fermentação natural",
+  "Post para uma clínica odontológica sobre clareamento",
+  "Quais marcas eu tenho cadastradas?",
+];
 
 // Shown while the agent runs a tool, instead of "Pensando…".
 const TOOL_STATUS: Record<string, string> = {
@@ -185,7 +193,7 @@ export function ChatPanel({
   return (
     <div className="flex flex-1 flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">Chat</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Chat</h1>
         <Button
           variant="outline"
           size="sm"
@@ -199,19 +207,37 @@ export function ChatPanel({
       {/* aria-busy: screen readers wait for the whole reply instead of reading every streamed piece. */}
       <div className="flex flex-1 flex-col gap-3 overflow-y-auto" aria-live="polite" aria-busy={pending}>
         {messages.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Diga o segmento do seu negócio e o formato (vídeo curto ou post estático) para receber
-            um roteiro. Digite / para escolher uma skill e @ para usar o brand kit de uma marca. Sem
-            marca cadastrada, anexe seu logo para extrair as cores e a identidade visual. Para agendar, anexe a imagem ou o vídeo e diga quando publicar.
-          </p>
+          <div className="grid max-w-xl gap-4 py-6">
+            <div className="grid gap-1.5">
+              <h2 className="text-lg font-semibold tracking-tight">Comece pelo seu negócio</h2>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                Diga o segmento e o que quer divulgar para receber o roteiro e as artes. Digite / para
+                escolher uma skill e @ para usar o brand kit de uma marca. Para agendar, anexe a
+                imagem e diga quando publicar.
+              </p>
+            </div>
+            <ul className="grid gap-2">
+              {EXAMPLES.map((example) => (
+                <li key={example}>
+                  <button
+                    type="button"
+                    onClick={() => setInput(example)}
+                    className="w-full rounded-lg border bg-card px-3 py-2 text-left text-sm transition-colors hover:border-primary/40 hover:bg-accent hover:text-accent-foreground"
+                  >
+                    {example}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         {messages.map((m, i) => (
           <div
             key={i}
             className={
               m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-lg bg-primary px-3 py-2 text-sm whitespace-pre-wrap text-primary-foreground"
-                : "mr-auto max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap"
+                ? "ml-auto max-w-[85%] rounded-xl rounded-br-sm bg-primary px-3.5 py-2.5 text-sm whitespace-pre-wrap text-primary-foreground"
+                : "mr-auto max-w-[85%] rounded-xl rounded-bl-sm bg-muted px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap"
             }
           >
             {m.text}
@@ -229,7 +255,7 @@ export function ChatPanel({
         ))}
         {pending &&
           (draft.text ? (
-            <div className="mr-auto max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm whitespace-pre-wrap">
+            <div className="mr-auto max-w-[85%] rounded-xl rounded-bl-sm bg-muted px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap">
               {draft.text}
               <span className="ml-0.5 inline-block animate-pulse" aria-hidden>
                 ▍
@@ -318,7 +344,8 @@ export function ChatPanel({
               disabled={blocked}
             />
           </div>
-          <Button type="submit" disabled={pending || blocked || !input.trim()}>
+          <Button type="submit" className="h-auto self-stretch px-4" disabled={pending || blocked || !input.trim()}>
+            <SendHorizontal strokeWidth={1.75} aria-hidden />
             Enviar
           </Button>
         </div>
