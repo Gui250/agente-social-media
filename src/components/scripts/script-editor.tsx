@@ -70,7 +70,7 @@ export function ScriptActions({
       <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
         Editar
       </Button>
-      <Button variant="destructive" size="sm" onClick={() => setDeleting(true)}>
+      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(true)}>
         Excluir
       </Button>
 

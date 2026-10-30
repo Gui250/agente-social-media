@@ -93,7 +93,7 @@ export function PostForm({
 
   return (
     <form
-      className="grid gap-3 rounded-xl border p-4"
+      className="grid gap-4"
       onSubmit={(e) => {
         e.preventDefault();
         if (when) setConfirming(true); // scheduling always goes through the confirmation dialog
@@ -155,8 +155,8 @@ export function PostForm({
             <DialogTitle>Confirmar agendamento</DialogTitle>
             <DialogDescription>
               {TYPE_LABEL[postType]} em @{username} para{" "}
-              {when && new Date(when).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}{" "}
-              — {mediaCount} mídia(s)
+              {when && new Date(when).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })},{" "}
+              {mediaCount} mídia(s)
             </DialogDescription>
           </DialogHeader>
           <p className="line-clamp-4 text-sm whitespace-pre-wrap">{caption || "(sem legenda)"}</p>

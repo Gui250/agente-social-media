@@ -8,8 +8,11 @@ import { ListSkeleton } from "@/components/ui/skeleton";
 
 export default function RoteirosPage() {
   return (
-    <div className="grid gap-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Roteiros</h1>
+    <div className="grid gap-6">
+      <div className="grid gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Roteiros</h1>
+        <p className="text-sm text-muted-foreground">Os roteiros que você gerou aqui ou no Chat.</p>
+      </div>
       <GenerateForm />
       <Suspense fallback={<ListSkeleton label="Carregando roteiros…" />}>
         <ScriptList />
@@ -23,13 +26,13 @@ async function ScriptList() {
   const rows = await scripts.list(user.id, { limit: 50 });
   if (rows.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Nenhum roteiro ainda. Gere um acima ou peça no Chat.
+      <p className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
+        Nenhum roteiro ainda. Gere o primeiro acima ou peça no Chat.
       </p>
     );
   }
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid items-start gap-4 lg:grid-cols-2">
       {rows.map((r) => (
         <ScriptCard
           key={r.id}
