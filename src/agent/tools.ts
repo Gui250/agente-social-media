@@ -50,7 +50,7 @@ export const generateCreativeScript = tool({
       .string()
       .nullable()
       .describe(
-        "Resumo de analyze_reference_creatives desta conversa (padrão, composição, tipo de imagem, cores com hex, texto, gancho), se houver",
+        "Resumo de analyze_reference_creatives e search_reference_creatives desta conversa (padrão, composição, tipo de imagem, cores com hex, texto, gancho e ideias das referências, sem links), em até 1500 caracteres, se houver",
       ),
   }),
   execute: safe(async (input, ctx) => {

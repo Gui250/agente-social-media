@@ -96,6 +96,23 @@ describe("scripts.generate", () => {
     expect(insertScript.mock.calls[0][0]).not.toHaveProperty("references");
   });
 
+  it("cuts long agent-written context to size instead of failing the script", async () => {
+    writeScript.mockResolvedValue(valid);
+    insertScript.mockImplementation(async (row) => ({ id: "s1", ...row }));
+    await generate("u1", {
+      segment: "dentista",
+      format: "static",
+      references: "r".repeat(5000),
+      visualIdentity: "v".repeat(2000),
+      objective: "o".repeat(400),
+      skills: ["criativo-disruptivo", "criativo-disruptivo", "criativo-disruptivo", "criativo-disruptivo"],
+    });
+    const req = writeScript.mock.calls[0][0];
+    expect(req.references).toHaveLength(4000);
+    expect(req.visualIdentity).toHaveLength(1500);
+    expect(req.objective).toHaveLength(300);
+  });
+
   it("rejects an unknown skill before calling the writer", async () => {
     await expect(generate("u1", { segment: "dentista", format: "video", skills: ["nao-existe"] })).rejects.toBeInstanceOf(
       DomainError,

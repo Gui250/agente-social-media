@@ -13,12 +13,15 @@ import {
   updateScriptContent,
 } from "@/models/creative-script";
 
-const optionalText = z
-  .string()
-  .trim()
-  .max(300)
-  .nullish()
-  .transform((v) => v || null);
+// Context the agent writes itself (summaries of references, identity, objective) is cut to size
+// instead of rejected: a long summary used to fail the whole script.
+const clipped = (max: number) =>
+  z
+    .string()
+    .trim()
+    .nullish()
+    .transform((v) => v?.slice(0, max) || null);
+const optionalText = clipped(300);
 
 const ALWAYS_SKILL = "criativo-disruptivo";
 
@@ -28,9 +31,12 @@ export const GenerateInput = z.object({
   objective: optionalText,
   audience: optionalText,
   tone: optionalText,
-  skills: z.array(z.string().max(60)).max(3).nullish(),
-  visualIdentity: z.string().trim().max(1000).nullish().transform((v) => v || null),
-  references: z.string().trim().max(2000).nullish().transform((v) => v || null),
+  skills: z
+    .array(z.string().max(60))
+    .nullish()
+    .transform((v) => v?.slice(0, 3)),
+  visualIdentity: clipped(1500),
+  references: clipped(4000),
 });
 export type GenerateInput = z.input<typeof GenerateInput>;
 
@@ -38,9 +44,15 @@ export type GenerateInput = z.input<typeof GenerateInput>;
 export async function generate(userId: string, input: GenerateInput, brandId: string | null = null) {
   const parsed = GenerateInput.safeParse(input);
   if (!parsed.success) {
+    // Say which field failed, so the agent can fix the call instead of calling it instability.
+    const field = parsed.error.issues[0]?.path[0];
     throw new DomainError(
       "invalid_input",
-      "Informe o segmento (2 a 120 caracteres) e o formato: vídeo ou estático.",
+      field === "segment"
+        ? "Informe o segmento do negócio (2 a 120 caracteres)."
+        : field === "format"
+          ? "O formato precisa ser estático (post ou carrossel)."
+          : `Campo inválido no pedido do roteiro: ${String(field)}.`,
     );
   }
   const { skills, visualIdentity, references, ...req } = parsed.data;
