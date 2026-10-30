@@ -9,6 +9,7 @@ const runningVideos = vi.fn();
 const finishGeneration = vi.fn();
 const putObject = vi.fn();
 const reviewArt = vi.fn();
+const readTextLayout = vi.fn();
 const getMediaForUser = vi.fn();
 const readObject = vi.fn();
 const withText = vi.fn();
@@ -25,6 +26,7 @@ vi.mock("@/models/media", () => ({ insertMedia, getMediaForUser }));
 vi.mock("@/models/generation", () => ({ insertGeneration, runningVideos, finishGeneration, listGenerations: vi.fn() }));
 vi.mock("@/lib/storage", () => ({ putObject, readObject }));
 vi.mock("@/services/creative-gen", () => gen);
+vi.mock("@/agent/brand-reader", () => ({ readTextLayout }));
 vi.mock("@/agent/art-critic", async (orig) => ({ ...(await orig<typeof import("@/agent/art-critic")>()), reviewArt }));
 vi.mock("@/services/overlay", () => ({
   withText,
@@ -72,7 +74,7 @@ describe("creatives.generate", () => {
     await generate("u1", { scriptId: "s1", brandColor: "#1a2b4c", logoMediaId: "logo" });
 
     expect(getMediaForUser).toHaveBeenCalledWith(["logo"], "u1");
-    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", "#1A2B4C");
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", expect.objectContaining({ color: "#1A2B4C" }));
     expect(reviewArt.mock.calls.map((c) => [...c[0]])).toEqual([[1, 1], [1, 2]]); // reviewed without the logo
     expect(putObject.mock.calls.map((c) => [...c[1]])).toEqual([[1, 1, 7], [1, 2, 7]]);
   });
@@ -90,6 +92,41 @@ describe("creatives.generate", () => {
     expect(prompt).toContain("A primeira imagem anexada é a foto real");
     expect(prompt).toContain("As outras imagens anexadas são referência de estilo");
     expect(prompt).not.toContain("foto real feita no momento"); // the style decides the look
+  });
+
+  it("lays the text out like the style references, leaves room for it and moves the logo off it", async () => {
+    getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "static", content: content(null) });
+    gen.generateImage.mockResolvedValue(new Uint8Array([1]));
+    getMediaForUser.mockResolvedValue([{ kind: "image", storage_path: "u1/x.jpg" }]);
+    readObject.mockResolvedValue(new Uint8Array([6]));
+    const layout = {
+      position: "bottom",
+      align: "center",
+      treatment: "band",
+      size: "large",
+      uppercase: true,
+      color: null,
+      background: "#F2C14E",
+    };
+    readTextLayout.mockResolvedValue(layout);
+
+    await generate("u1", { scriptId: "s1", styleMediaIds: ["estilo"], logoMediaId: "logo" });
+
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", { layout, color: null });
+    expect(gen.generateImage.mock.calls[0][0]).toContain("terço inferior com área limpa");
+  });
+
+  it("keeps the default layout when the layout can't be read", async () => {
+    getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "static", content: content(null) });
+    gen.generateImage.mockResolvedValue(new Uint8Array([1]));
+    getMediaForUser.mockResolvedValue([{ kind: "image", storage_path: "u1/x.jpg" }]);
+    readObject.mockResolvedValue(new Uint8Array([6]));
+    readTextLayout.mockRejectedValue(new Error("vision down"));
+
+    const res = await generate("u1", { scriptId: "s1", styleMediaIds: ["estilo"] });
+
+    expect(res.status).toBe("pronto");
+    expect(withText.mock.calls[0][2].layout).toMatchObject({ position: "top", treatment: "shadow" });
   });
 
   it("refuses more than 3 style references before spending on images", async () => {
@@ -218,7 +255,7 @@ describe("creatives.generate with an active brand", () => {
   it("uses the kit's color and logo, and keeps its forbidden elements out of the image", async () => {
     const res = await generate("u1", { scriptId: "s1" }, "b1");
     expect(activeKit).toHaveBeenCalledWith("u1", "b1");
-    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", "#1A2B3C");
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", expect.objectContaining({ color: "#1A2B3C" }));
     expect([...putObject.mock.calls[0][1]]).toEqual([1, 9]);
     expect(gen.generateImage.mock.calls[0][0]).toContain("Não mostre: neon.");
     expect(res).not.toHaveProperty("semLogo");
@@ -228,7 +265,7 @@ describe("creatives.generate with an active brand", () => {
     getMediaForUser.mockResolvedValue([{ kind: "image", storage_path: "u1/logo.jpg" }]);
     readObject.mockResolvedValue(new Uint8Array([7]));
     await generate("u1", { scriptId: "s1", brandColor: "#000000", logoMediaId: "logo" }, "b1");
-    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", "#000000");
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", expect.objectContaining({ color: "#000000" }));
     expect([...putObject.mock.calls[0][1]]).toEqual([1, 7]);
     expect(logoBytes).not.toHaveBeenCalled();
   });
@@ -243,7 +280,7 @@ describe("creatives.generate with an active brand", () => {
   it("without an active brand behaves as before", async () => {
     activeKit.mockResolvedValue(null);
     await generate("u1", { scriptId: "s1" }, null);
-    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", null);
+    expect(withText).toHaveBeenCalledWith(expect.anything(), "a", expect.objectContaining({ color: null }));
     expect(logoBytes).not.toHaveBeenCalled();
     expect(gen.generateImage.mock.calls[0][0]).not.toContain("Não mostre:");
   });

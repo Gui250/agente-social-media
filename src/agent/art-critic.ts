@@ -30,8 +30,9 @@ export const MIN_SCORE = 85;
 const critic = new Agent({
   name: "Crítico de arte",
   instructions: `Você é um diretor de arte sênior e exigente avaliando uma arte de anúncio para o
-Instagram antes da entrega. O texto em branco e negrito no topo foi aplicado pelo sistema de
-propósito: avalie a legibilidade dele, mas não o conte como texto desenhado pela IA.
+Instagram antes da entrega. O texto principal em negrito (no topo, no centro ou embaixo, solto, num
+bloco ou numa faixa de cor) foi aplicado pelo sistema de propósito, seguindo a diagramação das
+referências: avalie a legibilidade dele, mas não o conte como texto desenhado pela IA.
 Não confunda imagem bonita com boa peça publicitária: dê nota alta só quando a imagem para a
 rolagem e comunica a ideia. Pessoas posando e sorrindo para a câmera, aperto de mão, fundo liso de
 estúdio, gradientes genéricos, ícones 3D e estética de template corporativo são genéricos.

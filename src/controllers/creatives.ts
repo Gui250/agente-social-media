@@ -2,7 +2,8 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { APIError } from "openai";
 import { type ArtReview, approved, reviewArt } from "@/agent/art-critic";
-import { visualPrompt } from "@/agent/visual-prompt";
+import { readTextLayout } from "@/agent/brand-reader";
+import { DEFAULT_LAYOUT, type TextLayout, visualPrompt } from "@/agent/visual-prompt";
 import { activeKit, logoBytes, primaryColor } from "@/controllers/brands";
 import { DomainError } from "@/lib/errors";
 import { putObject, readObject } from "@/lib/storage";
@@ -45,6 +46,18 @@ async function provider<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// Best effort, like the critic: if the layout can't be read, the text keeps the default layout.
+async function textLayout(styles: Uint8Array[]): Promise<TextLayout> {
+  try {
+    const layout = await readTextLayout(styles);
+    console.log("text layout:", layout);
+    return layout;
+  } catch (e) {
+    console.error("text layout failed:", e);
+    return DEFAULT_LAYOUT;
+  }
+}
+
 // Best effort: a critic failure never blocks the art, it just goes out unreviewed.
 async function review(bytes: Uint8Array, script: CreativeScript, index: number): Promise<ArtReview | null> {
   try {
@@ -57,8 +70,9 @@ async function review(bytes: Uint8Array, script: CreativeScript, index: number):
   }
 }
 
-// Images the model sees with every slide: the user's real photo first, then the style references.
-type Inputs = { photo?: Uint8Array; styles: Uint8Array[] };
+// Images the model sees with every slide (the user's real photo first, then the style references)
+// and how the slide text is laid out on top.
+type Inputs = { photo?: Uint8Array; styles: Uint8Array[]; layout: TextLayout };
 
 // One slide: generate, have the critic score it, and redo a rejected one once with the critic's
 // fixes, keeping the better of the two. ponytail: up to 2 images per slide; a second retry would
@@ -72,10 +86,13 @@ async function slideImage(
   const images = inputs.photo ? [inputs.photo, ...inputs.styles] : inputs.styles;
   const make = async (prompt: string) => ({
     prompt,
-    bytes: await withText(await gen.generateImage(prompt, images), script.blocks[index].text, brand.color),
+    bytes: await withText(await gen.generateImage(prompt, images), script.blocks[index].text, {
+      layout: inputs.layout,
+      color: brand.color,
+    }),
   });
   const first = await make(
-    visualPrompt(script, index, brand, { photo: !!inputs.photo, styles: inputs.styles.length }),
+    visualPrompt(script, index, brand, { photo: !!inputs.photo, styles: inputs.styles.length, layout: inputs.layout }),
   );
   const firstReview = await review(first.bytes, script, index);
   if (!firstReview || approved(firstReview)) return first;
@@ -139,16 +156,23 @@ export async function generate(
     Promise.all(styleIds.map((id) => referenceImage(userId, id))),
   ]);
 
+  const layout = styles.length
+    ? await textLayout(styles)
+    : brand.color
+      ? { ...DEFAULT_LAYOUT, treatment: "box" as const } // the brand color's text box, as always
+      : DEFAULT_LAYOUT;
+
   const images = await provider(() =>
     Promise.all(
-      script.content.blocks.map((_, i) => slideImage(script.content, i, brand, { photo, styles })),
+      script.content.blocks.map((_, i) => slideImage(script.content, i, brand, { photo, styles, layout })),
     ),
   );
   const logo = logoMediaId
     ? await referenceImage(userId, logoMediaId)
     : kit && (await logoBytes(userId, kit.id));
   if (logo) {
-    for (const image of images) image.bytes = await withLogo(image.bytes, logo);
+    const corner = layout.position === "bottom" ? "top" : "bottom"; // never on top of the text
+    for (const image of images) image.bytes = await withLogo(image.bytes, logo, corner);
   }
   const mediaIds: string[] = [];
   for (const { prompt, bytes } of images) {

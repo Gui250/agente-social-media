@@ -25,4 +25,14 @@ describe("withLogo", () => {
     expect(g + b).toBeLessThan(80);
     expect(Math.max(...pixel(40, 40))).toBeLessThan(20); // rest of the image untouched
   });
+
+  it("moves to the top-right corner when the text is at the bottom", async () => {
+    const image = await sharp({ create: { width: 1088, height: 1360, channels: 3, background: "#000000" } }).jpeg().toBuffer();
+    const logo = await sharp({ create: { width: 400, height: 100, channels: 3, background: "#FF0000" } }).jpeg().toBuffer();
+
+    const { data, info } = await sharp(await withLogo(image, logo, "top")).raw().toBuffer({ resolveWithObject: true });
+    const pixel = (x: number, y: number) => [...data.subarray((y * info.width + x) * 3, (y * info.width + x) * 3 + 3)];
+    expect(pixel(1088 - 48 - 160, 48 + 50)[0]).toBeGreaterThan(200); // inside the logo, at the top
+    expect(Math.max(...pixel(1088 - 48 - 160, 1360 - 48 - 50))).toBeLessThan(20); // bottom corner free
+  });
 });

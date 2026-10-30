@@ -67,7 +67,10 @@ All user-facing text is Portuguese.
   colors, text, hook); the agent passes a summary in `generate_creative_script.references`, which
   reaches the writer inside `<referencias>` as data. The same images go to
   `generate_creative_media.styleMediaIds` (up to 3): the image model gets them after the real photo
-  and `visualPrompt` says to follow their look without copying scene, text or logos. Never in
+  and `visualPrompt` says to follow their look without copying scene, text or logos. They also set
+  the text layout: `readTextLayout` (vision, enums) → `TextLayout` (position, align, shadow/box/
+  band/plain, size, case, colors) drives `withText`, the clean area in `visualPrompt` and the logo
+  corner; without style references it's `DEFAULT_LAYOUT` (top, left, box with the brand color). Never in
   `referenceMediaId`, which is only the real product/place photo. `search_reference_creatives` (attached photo or post + brief) →
   `brand.researchReferences` → `searchReferences`, a sub-agent with OpenAI's hosted `webSearchTool`
   that finds agency campaigns for what the media shows and returns links + the same recipe; links
