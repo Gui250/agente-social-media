@@ -62,6 +62,14 @@ All user-facing text is Portuguese.
 - **Visual identity** `extract_visual_identity` → `src/controllers/brand.ts` → `src/agent/brand-reader.ts`
   (vision model, structured output): colors (hex), logo, typography and style of an attached image.
   Not stored; the agent passes a summary in `generate_creative_script.visualIdentity`.
+  Reference creatives work the same way: `analyze_reference_creatives` (1–5 attached images) →
+  `brand.analyzeReferences` → `readReferences` returns their recipe (pattern, composition, imagery,
+  colors, text, hook); the agent passes a summary in `generate_creative_script.references`, which
+  reaches the writer inside `<referencias>` as data. Never in `referenceMediaId` (the image model
+  would redraw the piece). `search_reference_creatives` (attached photo or post + brief) →
+  `brand.researchReferences` → `searchReferences`, a sub-agent with OpenAI's hosted `webSearchTool`
+  that finds agency campaigns for what the media shows and returns links + the same recipe; links
+  go to the user, the recipe to `references`. SDK conventions: `.claude/skills/openai-agents-js/SKILL.md`.
 - **Empresas e marcas** (`specs/002-orgs-brands`, base of the Creative Intelligence Engine):
   `organizations` (single owner `user_id`, immutable `slug` used in `/empresas/[slug]`), `brands`
   (brand kit in `color_palette`/`typography` jsonb and `visual_guidelines`/`forbidden_elements`

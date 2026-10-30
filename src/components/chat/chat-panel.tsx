@@ -19,6 +19,8 @@ const TOOL_STATUS: Record<string, string> = {
   generate_creative_script: "Escrevendo o roteiro…",
   load_skill: "Lendo a skill…",
   extract_visual_identity: "Analisando a identidade visual…",
+  analyze_reference_creatives: "Analisando as referências…",
+  search_reference_creatives: "Buscando referências na web…",
   list_creative_scripts: "Consultando os roteiros…",
   generate_creative_media: "Gerando as artes…",
   list_generations: "Consultando as mídias…",

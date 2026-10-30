@@ -46,6 +46,12 @@ export const generateCreativeScript = tool({
       .string()
       .nullable()
       .describe("Resumo da identidade visual extraída nesta conversa (cores com hex, estilo), se houver"),
+    references: z
+      .string()
+      .nullable()
+      .describe(
+        "Resumo de analyze_reference_creatives desta conversa (padrão, composição, tipo de imagem, cores com hex, texto, gancho), se houver",
+      ),
   }),
   execute: safe(async (input, ctx) => {
     const row = await scripts.generate(ctx.userId, input, ctx.brandId);
@@ -67,6 +73,30 @@ export const extractVisualIdentity = tool({
     "Extrai a identidade visual (cores com hex, logo, tipografia e estilo) de uma imagem anexada pelo usuário, como o logo ou uma arte da marca.",
   parameters: z.object({ mediaId: z.string().describe("id de uma imagem em [mídias anexadas: ...]") }),
   execute: safe(({ mediaId }, ctx) => brand.extractIdentity(ctx.userId, mediaId)),
+});
+
+export const analyzeReferenceCreatives = tool({
+  name: "analyze_reference_creatives",
+  description:
+    "Analisa criativos que o usuário anexou como referência (posts ou anúncios dele ou que ele admira) e devolve a receita deles: padrão criativo, composição, tipo de imagem, cores, texto e gancho. Não use para logo nem para foto real do produto.",
+  parameters: z.object({
+    mediaIds: z.array(z.string()).describe("ids das imagens de referência em [mídias anexadas: ...], até 5"),
+  }),
+  execute: safe(({ mediaIds }, ctx) => brand.analyzeReferences(ctx.userId, mediaIds)),
+});
+
+export const searchReferenceCreatives = tool({
+  name: "search_reference_creatives",
+  description:
+    "Pesquisa na web campanhas e anúncios de nível agência a partir da mídia anexada (foto do produto, do lugar, da equipe ou um post do usuário) e devolve as referências com link e a receita comum a elas. Use antes de gerar um criativo quando houver mídia anexada. Não use para o logo.",
+  parameters: z.object({
+    mediaIds: z.array(z.string()).describe("ids das imagens em [mídias anexadas: ...], até 5"),
+    brief: z.string().nullable().describe("Segmento, objetivo e público do criativo, se souber"),
+  }),
+  // A slow search shouldn't eat the chat's 270 s; the agent goes on without references.
+  timeoutMs: 90_000,
+  timeoutBehavior: "error_as_result",
+  execute: safe(({ mediaIds, brief }, ctx) => brand.researchReferences(ctx.userId, mediaIds, brief)),
 });
 
 export const listBrands = tool({
@@ -277,6 +307,8 @@ export const tools = [
   listCreativeScripts,
   loadSkill,
   extractVisualIdentity,
+  analyzeReferenceCreatives,
+  searchReferenceCreatives,
   listBrands,
   getBrandKit,
   setActiveBrand,

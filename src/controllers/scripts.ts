@@ -30,6 +30,7 @@ export const GenerateInput = z.object({
   tone: optionalText,
   skills: z.array(z.string().max(60)).max(3).nullish(),
   visualIdentity: z.string().trim().max(1000).nullish().transform((v) => v || null),
+  references: z.string().trim().max(2000).nullish().transform((v) => v || null),
 });
 export type GenerateInput = z.input<typeof GenerateInput>;
 
@@ -42,7 +43,7 @@ export async function generate(userId: string, input: GenerateInput, brandId: st
       "Informe o segmento (2 a 120 caracteres) e o formato: vídeo ou estático.",
     );
   }
-  const { skills, visualIdentity, ...req } = parsed.data;
+  const { skills, visualIdentity, references, ...req } = parsed.data;
   // ALWAYS_SKILL goes into every script: without it the writer falls back to safe, institutional copy.
   const names = [...new Set([ALWAYS_SKILL, ...(skills ?? [])])];
   const guidelines = (await getSkills(names, userId)).map((s) => s.body).join("\n\n");
@@ -54,6 +55,7 @@ export async function generate(userId: string, input: GenerateInput, brandId: st
     ...req,
     guidelines,
     visualIdentity,
+    references,
     recent,
     brand: kit && kitBlock(kit),
     forbidden: kit?.proibidos,

@@ -88,6 +88,14 @@ describe("scripts.generate", () => {
     expect(insertScript.mock.calls[0][0]).not.toHaveProperty("visualIdentity");
   });
 
+  it("passes the reference creatives' recipe to the writer without saving it", async () => {
+    writeScript.mockResolvedValue(valid);
+    insertScript.mockImplementation(async (row) => ({ id: "s1", ...row }));
+    await generate("u1", { segment: "dentista", format: "static", references: "Close extremo, fundo escuro" });
+    expect(writeScript.mock.calls[0][0].references).toBe("Close extremo, fundo escuro");
+    expect(insertScript.mock.calls[0][0]).not.toHaveProperty("references");
+  });
+
   it("rejects an unknown skill before calling the writer", async () => {
     await expect(generate("u1", { segment: "dentista", format: "video", skills: ["nao-existe"] })).rejects.toBeInstanceOf(
       DomainError,
