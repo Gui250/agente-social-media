@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api-client";
+import { Monogram } from "./breadcrumbs";
 import { brandCountLabel } from "./organization-list";
 
 export function OrganizationHeader({
@@ -58,9 +60,9 @@ export function OrganizationHeader({
   const { brandCount } = organization;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-3">
       {editing ? (
-        <form onSubmit={rename} className="flex flex-1 gap-2">
+        <form onSubmit={rename} className="flex max-w-xl flex-1 gap-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} aria-label="Nome da empresa" maxLength={80} required />
           <Button type="submit" disabled={pending}>
             Salvar
@@ -78,15 +80,25 @@ export function OrganizationHeader({
         </form>
       ) : (
         <>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold tracking-tight">{organization.name}</h1>
-            <p className="text-xs text-muted-foreground">{organization.slug}</p>
+          <div className="flex min-w-0 items-center gap-3">
+            <Monogram name={organization.name} className="size-12 text-lg" />
+            <div className="min-w-0">
+              <h1 className="truncate text-2xl font-semibold tracking-tight">{organization.name}</h1>
+              <p className="text-sm text-muted-foreground">{brandCountLabel(brandCount)}</p>
+            </div>
           </div>
           <div className="ml-auto flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Pencil strokeWidth={1.75} aria-hidden />
               Renomear
             </Button>
-            <Button variant="destructive" size="sm" onClick={() => setConfirming(true)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => setConfirming(true)}
+            >
+              <Trash2 strokeWidth={1.75} aria-hidden />
               Excluir empresa
             </Button>
           </div>

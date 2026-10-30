@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -151,27 +152,41 @@ export function BrandForm({ brand }: { brand: BrandFormValue }) {
     }
   }
 
+  const textField = (key: keyof Texts) => {
+    const { label, max, long } = TEXT_FIELDS.find((f) => f.key === key)!;
+    const id = `brand-${key}`;
+    const props = {
+      id,
+      value: draft[key],
+      maxLength: max,
+      required: key === "name",
+      onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => set(key, e.target.value),
+    };
+    return (
+      <div key={key} className="grid gap-2">
+        <Label htmlFor={id}>{label}</Label>
+        {long ? <Textarea rows={3} {...props} /> : <Input {...props} />}
+      </div>
+    );
+  };
+
   return (
     <>
       <form onSubmit={save} className="grid gap-4">
-        {TEXT_FIELDS.map(({ key, label, max, long }) => {
-          const id = `brand-${key}`;
-          const props = {
-            id,
-            value: draft[key],
-            maxLength: max,
-            required: key === "name",
-            onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => set(key, e.target.value),
-          };
-          return (
-            <div key={key} className="grid gap-1.5">
-              <Label htmlFor={id}>{label}</Label>
-              {long ? <Textarea rows={3} {...props} /> : <Input {...props} />}
-            </div>
-          );
-        })}
-        <fieldset className="grid gap-2">
-          <legend className="mb-1 text-sm font-medium">Cores</legend>
+        <Panel title="Sobre a marca">
+          <div className="grid gap-4 sm:grid-cols-2">
+            {textField("name")}
+            {textField("industry")}
+          </div>
+          {textField("description")}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {textField("targetAudience")}
+            {textField("brandVoice")}
+          </div>
+        </Panel>
+
+        <Panel title="Cores" description="A primária vai nas artes geradas, junto com o logo.">
+          {draft.colorPalette.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma cor cadastrada.</p>}
           {draft.colorPalette.map((c, i) => (
             <div key={i} className="flex items-center gap-2">
               <input
@@ -179,13 +194,13 @@ export function BrandForm({ brand }: { brand: BrandFormValue }) {
                 aria-label={`Cor ${i + 1}`}
                 value={HEX.test(c.hex) ? c.hex : "#000000"}
                 onChange={(e) => setColor(i, { hex: e.target.value.toUpperCase() })}
-                className="h-8 w-10 rounded border"
+                className="size-9 shrink-0 cursor-pointer rounded-lg border bg-transparent p-0.5 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-none [&::-webkit-color-swatch-wrapper]:p-0"
               />
               <Input
                 aria-label={`Hexadecimal da cor ${i + 1}`}
                 value={c.hex}
                 onChange={(e) => setColor(i, { hex: e.target.value })}
-                className="w-28"
+                className="w-28 font-mono uppercase"
                 maxLength={7}
               />
               <NativeSelect
@@ -200,19 +215,15 @@ export function BrandForm({ brand }: { brand: BrandFormValue }) {
                   </option>
                 ))}
               </NativeSelect>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
+              <RemoveButton
+                label={`Remover cor ${i + 1}`}
                 onClick={() =>
                   set(
                     "colorPalette",
                     draft.colorPalette.filter((_, j) => j !== i),
                   )
                 }
-              >
-                Remover
-              </Button>
+              />
             </div>
           ))}
           {draft.colorPalette.length < MAX_COLORS && (
@@ -228,12 +239,14 @@ export function BrandForm({ brand }: { brand: BrandFormValue }) {
                 ])
               }
             >
+              <Plus strokeWidth={1.75} aria-hidden />
               Adicionar cor
             </Button>
           )}
-        </fieldset>
-        <fieldset className="grid gap-2">
-          <legend className="mb-1 text-sm font-medium">Fontes</legend>
+        </Panel>
+
+        <Panel title="Fontes">
+          {draft.typography.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma fonte cadastrada.</p>}
           {draft.typography.map((f, i) => (
             <div key={i} className="flex items-center gap-2">
               <Input
@@ -255,19 +268,15 @@ export function BrandForm({ brand }: { brand: BrandFormValue }) {
                   </option>
                 ))}
               </NativeSelect>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
+              <RemoveButton
+                label={`Remover fonte ${i + 1}`}
                 onClick={() =>
                   set(
                     "typography",
                     draft.typography.filter((_, j) => j !== i),
                   )
                 }
-              >
-                Remover
-              </Button>
+              />
             </div>
           ))}
           {draft.typography.length < MAX_FONTS && (
@@ -283,33 +292,49 @@ export function BrandForm({ brand }: { brand: BrandFormValue }) {
                 ])
               }
             >
+              <Plus strokeWidth={1.75} aria-hidden />
               Adicionar fonte
             </Button>
           )}
-        </fieldset>
-        {(
-          [
-            ["visualGuidelines", "Diretrizes visuais", "Ex.: Fundo claro com bastante respiro"],
-            ["forbiddenElements", "Elementos proibidos", "Ex.: Cores neon"],
-          ] as const
-        ).map(([key, label, placeholder]) => (
-          <div key={key} className="grid gap-1.5">
-            <Label htmlFor={`brand-${key}`}>{label}</Label>
-            <Textarea
-              id={`brand-${key}`}
-              rows={4}
-              placeholder={placeholder}
-              value={draft[key]}
-              onChange={(e) => set(key, e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">Um item por linha (até 30, com até 500 caracteres cada).</p>
+        </Panel>
+
+        <Panel title="Diretrizes" description="Um item por linha (até 30, com até 500 caracteres cada).">
+          <div className="grid gap-4 md:grid-cols-2">
+            {(
+              [
+                ["visualGuidelines", "Diretrizes visuais", "Ex.: Fundo claro com bastante respiro"],
+                ["forbiddenElements", "Elementos proibidos", "Ex.: Cores neon"],
+              ] as const
+            ).map(([key, label, placeholder]) => (
+              <div key={key} className="grid gap-2">
+                <Label htmlFor={`brand-${key}`}>{label}</Label>
+                <Textarea
+                  id={`brand-${key}`}
+                  rows={5}
+                  placeholder={placeholder}
+                  value={draft[key]}
+                  onChange={(e) => set(key, e.target.value)}
+                />
+              </div>
+            ))}
           </div>
-        ))}
-        <div className="flex gap-2">
+        </Panel>
+
+        {/* Stays in view while editing, so saving never needs a scroll to the bottom. */}
+        <div className="sticky bottom-0 z-10 flex items-center gap-3 border-t bg-background py-3">
           <Button type="submit" disabled={pending || !dirty}>
             {pending ? "Salvando…" : "Salvar"}
           </Button>
-          <Button type="button" variant="destructive" className="ml-auto" onClick={() => setConfirming(true)}>
+          <span className="text-sm text-muted-foreground" aria-live="polite">
+            {dirty ? "Alterações não salvas" : "Tudo salvo"}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            className="ml-auto text-destructive hover:text-destructive"
+            onClick={() => setConfirming(true)}
+          >
+            <Trash2 strokeWidth={1.75} aria-hidden />
             Excluir marca
           </Button>
         </div>
@@ -333,5 +358,25 @@ export function BrandForm({ brand }: { brand: BrandFormValue }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function Panel({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+  return (
+    <section className="grid gap-4 rounded-xl bg-card p-4 ring-1 ring-foreground/10 sm:p-5">
+      <div className="grid gap-1">
+        <h2 className="font-semibold">{title}</h2>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function RemoveButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <Button type="button" variant="ghost" size="icon" aria-label={label} title={label} onClick={onClick}>
+      <X strokeWidth={1.75} aria-hidden />
+    </Button>
   );
 }

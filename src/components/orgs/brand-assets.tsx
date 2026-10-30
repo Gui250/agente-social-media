@@ -1,5 +1,6 @@
 "use client";
 
+import { ImageIcon, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -83,29 +84,34 @@ export function BrandAssets({ brandId, assets }: { brandId: string; assets: Asse
           if (f) send(f);
         }}
       />
-      <div className="grid gap-2">
+      <div className="grid gap-3">
         <h3 className="text-sm font-medium">Logo</h3>
-        <div className="flex items-center gap-3">
+        {/* Checkerboard behind the logo so transparent and white logos stay visible. */}
+        <div className="grid aspect-[3/2] place-items-center rounded-lg border bg-[repeating-conic-gradient(var(--muted)_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-4">
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL from the private store
-            <img src={logo.url} alt="Logo da marca" className="size-20 rounded-md border object-contain p-1" />
+            <img src={logo.url} alt="Logo da marca" className="max-h-full max-w-full object-contain" />
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhum logo enviado.</p>
+            <span className="grid justify-items-center gap-1 text-sm text-muted-foreground">
+              <ImageIcon className="size-5" strokeWidth={1.5} aria-hidden />
+              Nenhum logo enviado
+            </span>
           )}
-          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => pick("logo")}>
-            {pending && target === "logo" ? "Enviando…" : logo ? "Trocar logo" : "Enviar logo"}
-          </Button>
         </div>
+        <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => pick("logo")}>
+          <Upload strokeWidth={1.75} aria-hidden />
+          {pending && target === "logo" ? "Enviando…" : logo ? "Trocar logo" : "Enviar logo"}
+        </Button>
         <p className="text-xs text-muted-foreground">PNG, JPEG ou WebP, até 10 MB, de 64 a 8000 pixels por lado.</p>
       </div>
       <div className="grid gap-2">
         <h3 className="text-sm font-medium">Outros arquivos</h3>
         {extras.length > 0 && (
-          <ul className="flex flex-wrap gap-3">
+          <ul className="grid grid-cols-3 gap-3">
             {extras.map((a) => (
-              <li key={a.id} className="grid w-24 gap-1 text-center text-xs">
+              <li key={a.id} className="grid gap-1 text-center text-xs">
                 {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
-                <img src={a.url} alt={LABELS[a.assetType]} className="size-24 rounded-md border object-contain p-1" />
+                <img src={a.url} alt={LABELS[a.assetType]} className="aspect-square w-full rounded-md border object-contain p-1" />
                 <span className="text-muted-foreground">{LABELS[a.assetType]}</span>
                 <Button type="button" variant="ghost" size="xs" disabled={pending} onClick={() => remove(a)}>
                   Excluir
@@ -118,7 +124,7 @@ export function BrandAssets({ brandId, assets }: { brandId: string; assets: Asse
           <div className="flex items-center gap-2">
             <NativeSelect
               aria-label="Tipo do arquivo"
-              className="w-48"
+              className="min-w-0 flex-1"
               value={extraType}
               onChange={(e) => setExtraType(e.target.value as Exclude<AssetType, "logo">)}
             >
@@ -126,7 +132,8 @@ export function BrandAssets({ brandId, assets }: { brandId: string; assets: Asse
               <option value="other">{LABELS.other}</option>
             </NativeSelect>
             <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => pick(extraType)}>
-              {pending && target !== "logo" ? "Enviando…" : "Enviar arquivo"}
+              <Upload strokeWidth={1.75} aria-hidden />
+              {pending && target !== "logo" ? "Enviando…" : "Enviar"}
             </Button>
           </div>
         ) : (
