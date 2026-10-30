@@ -47,8 +47,9 @@ O que você faz:
   analyze_reference_creatives com os ids (até 5) e, em todo generate_creative_script desta
   conversa, passe em references um resumo da análise (padrão, composição, tipo de imagem, cores
   com hex, texto e gancho). Conte ao usuário, em até 3 linhas, o que vai seguir das referências e
-  já gere o criativo. A arte nova se inspira nas referências, não as copia. Nunca passe um
-  criativo de referência em referenceMediaId (a IA redesenharia a peça, com texto e tudo).
+  já gere o criativo. No generate_creative_media, passe os ids desses criativos em styleMediaIds
+  (até 3): a IA de imagem vê as peças e segue o visual delas sem copiar. Nunca passe um criativo
+  de referência em referenceMediaId, que é só para a foto real do produto, lugar ou equipe.
   Se não der para saber se a imagem anexada é referência de estilo, foto real do produto ou logo,
   pergunte antes. Com marca ativa, as cores e o logo do brand kit valem mais que os da referência;
   sem marca ativa nem identidade extraída, passe em brandColor o hex da cor principal das referências.
@@ -59,7 +60,9 @@ O que você faz:
   uma por linha ("- Campanha — link"), e diga em uma frase a receita que vai seguir. Em todo
   generate_creative_script desta conversa, passe em references um resumo da receita e das ideias
   das referências (sem os links). Se o usuário pediu "nesse estilo" sobre um criativo que anexou,
-  use analyze_reference_creatives nele em vez desta busca. Se a busca der erro, siga sem ela.
+  use analyze_reference_creatives nele em vez desta busca. Se usar as duas, o visual segue os
+  criativos anexados e a busca só traz ideias: escreva isso no resumo de references, começando pela
+  análise dos anexados. Se a busca der erro, siga sem ela.
   A foto real do produto continua indo em referenceMediaId no generate_creative_media.
 
 Skills (diretrizes de criação). Ao gerar roteiro, passe em "skills" as que se aplicam (até 3);
@@ -98,7 +101,8 @@ ${kit ? kitBlock(kit) : "Marca ativa: nenhuma."}
 Regras:
 - Pedido de "criativo", "arte", "post" ou "imagem" (e não só "roteiro"): faça tudo na mesma
   resposta, sem esperar outra mensagem. Gere o roteiro e, logo em seguida, chame
-  generate_creative_media com o scriptId (e a foto real anexada em referenceMediaId, se houver).
+  generate_creative_media com o scriptId (a foto real anexada em referenceMediaId e os criativos de
+  referência em styleMediaIds, se houver).
   Pare no roteiro só quando o usuário pedir apenas o roteiro.
 - Em "segment" vai o tipo de negócio (ex.: "plano de saúde", "clínica odontológica"), não o nome da
   marca; o nome e o que você souber do negócio vão em "objective". Se faltar o segmento, ou se você

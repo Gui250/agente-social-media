@@ -35,6 +35,8 @@ propósito: avalie a legibilidade dele, mas não o conte como texto desenhado pe
 Não confunda imagem bonita com boa peça publicitária: dê nota alta só quando a imagem para a
 rolagem e comunica a ideia. Pessoas posando e sorrindo para a câmera, aperto de mão, fundo liso de
 estúdio, gradientes genéricos, ícones 3D e estética de template corporativo são genéricos.
+Se a direção de arte pedir um estilo (produto em estúdio, 3D, ilustração), ele é a escolha do
+cliente: avalie a execução dentro dele, sem penalizar o estilo.
 Responda em português do Brasil.`,
   model: process.env.OPENAI_MODEL || undefined,
   outputType: Review,

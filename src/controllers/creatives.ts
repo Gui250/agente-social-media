@@ -57,6 +57,9 @@ async function review(bytes: Uint8Array, script: CreativeScript, index: number):
   }
 }
 
+// Images the model sees with every slide: the user's real photo first, then the style references.
+type Inputs = { photo?: Uint8Array; styles: Uint8Array[] };
+
 // One slide: generate, have the critic score it, and redo a rejected one once with the critic's
 // fixes, keeping the better of the two. ponytail: up to 2 images per slide; a second retry would
 // risk the 300 s request limit.
@@ -64,13 +67,16 @@ async function slideImage(
   script: CreativeScript,
   index: number,
   brand: { segment: string; color: string | null; forbidden?: string[] },
-  reference?: Uint8Array,
+  inputs: Inputs,
 ) {
+  const images = inputs.photo ? [inputs.photo, ...inputs.styles] : inputs.styles;
   const make = async (prompt: string) => ({
     prompt,
-    bytes: await withText(await gen.generateImage(prompt, reference), script.blocks[index].text, brand.color),
+    bytes: await withText(await gen.generateImage(prompt, images), script.blocks[index].text, brand.color),
   });
-  const first = await make(visualPrompt(script, index, brand));
+  const first = await make(
+    visualPrompt(script, index, brand, { photo: !!inputs.photo, styles: inputs.styles.length }),
+  );
   const firstReview = await review(first.bytes, script, index);
   if (!firstReview || approved(firstReview)) return first;
 
@@ -94,9 +100,19 @@ export type GenerateResult = {
 // The logo goes on after the review, so the critic never takes the real logo for an invented one.
 // brandId: the conversation's active brand. Its kit fills the color and logo the agent didn't pass
 // (an attached logo or an explicit color wins) and keeps its forbidden elements out of the images.
+export const MAX_STYLES = 3;
+
+// styleMediaIds: creatives the user attached as the style to follow; the image model sees them
+// with the prompt, which tells it to take the look and never copy the scene, text or logos.
 export async function generate(
   userId: string,
-  input: { scriptId: string; referenceMediaId?: string | null; brandColor?: string | null; logoMediaId?: string | null },
+  input: {
+    scriptId: string;
+    referenceMediaId?: string | null;
+    styleMediaIds?: string[] | null;
+    brandColor?: string | null;
+    logoMediaId?: string | null;
+  },
   brandId: string | null = null,
 ): Promise<GenerateResult> {
   const { scriptId, referenceMediaId, logoMediaId } = input;
@@ -114,11 +130,18 @@ export async function generate(
       "A geração de vídeo por IA não está disponível: o modelo de vídeo da OpenAI foi desativado. Use o roteiro para gravar o Reels e anexe o vídeo, ou peça um carrossel/post estático para gerar as imagens.",
     );
   }
-  const reference = referenceMediaId ? await referenceImage(userId, referenceMediaId) : undefined;
+  const styleIds = [...new Set(input.styleMediaIds ?? [])].filter((id) => id !== referenceMediaId);
+  if (styleIds.length > MAX_STYLES) {
+    throw new DomainError("invalid_input", `Use até ${MAX_STYLES} criativos como referência de estilo.`);
+  }
+  const [photo, styles] = await Promise.all([
+    referenceMediaId ? referenceImage(userId, referenceMediaId) : undefined,
+    Promise.all(styleIds.map((id) => referenceImage(userId, id))),
+  ]);
 
   const images = await provider(() =>
     Promise.all(
-      script.content.blocks.map((_, i) => slideImage(script.content, i, brand, reference)),
+      script.content.blocks.map((_, i) => slideImage(script.content, i, brand, { photo, styles })),
     ),
   );
   const logo = logoMediaId

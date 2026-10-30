@@ -7,11 +7,12 @@ let client: OpenAI | undefined;
 const openai = () => (client ??= new OpenAI({ apiKey: env().OPENAI_API_KEY }));
 
 // 4:5 at 1088x1360 (both divisible by 16, as gpt-image-2 requires): the feed format, as JPEG,
-// the only image type the publisher accepts. `reference` is the user's real product photo.
+// the only image type the publisher accepts. `references` are the user's real photo and/or the
+// creatives whose style they want, in the order the prompt describes (visual-prompt.ts).
 export const IMAGE_SIZE = { width: 1088, height: 1360 };
 export const VIDEO_SIZE = { width: 720, height: 1280 };
 
-export async function generateImage(prompt: string, reference?: Uint8Array): Promise<Uint8Array> {
+export async function generateImage(prompt: string, references: Uint8Array[] = []): Promise<Uint8Array> {
   const params = {
     model: env().IMAGE_MODEL,
     prompt,
@@ -19,8 +20,11 @@ export async function generateImage(prompt: string, reference?: Uint8Array): Pro
     output_format: "jpeg",
     quality: "high",
   } as const;
-  const res = reference
-    ? await openai().images.edit({ ...params, image: await toFile(reference, "ref.jpg", { type: "image/jpeg" }) })
+  const res = references.length
+    ? await openai().images.edit({
+        ...params,
+        image: await Promise.all(references.map((r, i) => toFile(r, `ref-${i}.jpg`, { type: "image/jpeg" }))),
+      })
     : await openai().images.generate(params);
   const b64 = res.data?.[0]?.b64_json;
   if (!b64) throw new Error("Image API returned no image");

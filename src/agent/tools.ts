@@ -197,6 +197,12 @@ export const generateCreativeMedia = tool({
       .string()
       .nullable()
       .describe("id de uma foto real anexada pelo usuário (produto, lugar, equipe) para usar como referência; nunca o logo"),
+    styleMediaIds: z
+      .array(z.string())
+      .nullable()
+      .describe(
+        "ids dos criativos anexados como referência de estilo (os de analyze_reference_creatives), até 3; a IA segue o visual deles sem copiar. Nunca o logo nem a foto do produto",
+      ),
     brandColor: z
       .string()
       .nullable()

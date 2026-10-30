@@ -77,6 +77,29 @@ describe("creatives.generate", () => {
     expect(putObject.mock.calls.map((c) => [...c[1]])).toEqual([[1, 1, 7], [1, 2, 7]]);
   });
 
+  it("sends the real photo first and the style references after it, and the prompt says which is which", async () => {
+    getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "static", content: content(null) });
+    gen.generateImage.mockResolvedValue(new Uint8Array([1]));
+    getMediaForUser.mockImplementation(async ([id]: string[]) => [{ kind: "image", storage_path: `u1/${id}.jpg` }]);
+    readObject.mockImplementation(async (path: string) => new Uint8Array([path.includes("foto") ? 5 : 6]));
+
+    await generate("u1", { scriptId: "s1", referenceMediaId: "foto", styleMediaIds: ["estilo", "estilo", "foto"] });
+
+    const [prompt, images] = gen.generateImage.mock.calls[0];
+    expect(images.map((i: Uint8Array) => i[0])).toEqual([5, 6]); // photo, then one style (deduped, photo excluded)
+    expect(prompt).toContain("A primeira imagem anexada é a foto real");
+    expect(prompt).toContain("As outras imagens anexadas são referência de estilo");
+    expect(prompt).not.toContain("foto real feita no momento"); // the style decides the look
+  });
+
+  it("refuses more than 3 style references before spending on images", async () => {
+    getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "static", content: content(null) });
+    await expect(generate("u1", { scriptId: "s1", styleMediaIds: ["a", "b", "c", "d"] })).rejects.toBeInstanceOf(
+      DomainError,
+    );
+    expect(gen.generateImage).not.toHaveBeenCalled();
+  });
+
   it("rejects a brand color that isn't #RRGGBB before spending on images", async () => {
     getScript.mockResolvedValue({ id: "s1", segment: "dentista", format: "static", content: content(null) });
     await expect(generate("u1", { scriptId: "s1", brandColor: "azul" })).rejects.toBeInstanceOf(DomainError);

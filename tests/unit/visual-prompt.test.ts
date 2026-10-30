@@ -36,6 +36,22 @@ describe("visualPrompt", () => {
   });
 });
 
+describe("visualPrompt image inputs", () => {
+  it("without style references, follows the art direction and falls back to a real photo", () => {
+    const prompt = visualPrompt(script, 0, brand);
+    expect(prompt).toContain("Use o tipo de imagem da direção de arte");
+    expect(prompt).not.toContain("referência de estilo");
+  });
+
+  it("with only style references, follows them instead of forcing a real photo", () => {
+    const prompt = visualPrompt(script, 0, brand, { styles: 2 });
+    expect(prompt).toContain("As imagens anexadas são referência de estilo");
+    expect(prompt).toContain("não copie a cena, os textos, as marcas nem os logos");
+    expect(prompt).not.toContain("foto real feita no momento");
+    expect(prompt).not.toContain("foto real do cliente");
+  });
+});
+
 describe("videoPrompt", () => {
   it("compresses every scene into one clip that opens on the hook", () => {
     const prompt = videoPrompt(script, brand);
