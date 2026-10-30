@@ -13,6 +13,19 @@ export function errorResponse(e: unknown) {
     return Response.json({ error: { code: e.code, message: e.message } }, { status: e.status });
   }
   console.error(e);
+  // OpenAI out of credits: not a bug and retrying won't help, so say what to do.
+  const { code, type } = (e ?? {}) as { code?: unknown; type?: unknown };
+  if (code === "credit_balance_exhausted" || type === "insufficient_quota") {
+    return Response.json(
+      {
+        error: {
+          code: "ai_quota",
+          message: "A conta da OpenAI usada pelo app ficou sem créditos. Adicione créditos em platform.openai.com e tente de novo.",
+        },
+      },
+      { status: 503 },
+    );
+  }
   return Response.json(
     { error: { code: "internal", message: "Algo deu errado. Tente de novo." } },
     { status: 500 },
